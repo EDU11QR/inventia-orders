@@ -28,6 +28,10 @@ public class Pedido {
 
     private String direccion;
 
+    private String ciudad;
+
+    private Integer correlativo;
+
     private String producto;
 
     // ==========================================

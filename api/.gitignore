@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Oculta el real .yml donde se ubican las credenciales ###
+src/main/resources/application.yml

@@ -563,379 +563,431 @@ import java.util.List;
 public class PdfService {
 
 //    public String generarPdfConsolidado(List<Pedido> pedidos)
-        public String generarTicket(Pedido pedido){
+public String generarTicket(Pedido pedido) {
 
-        try {
+    try {
 
-            // ==========================================
-            // crear carpeta pdfs
-            // ==========================================
-            new File("pdfs").mkdirs();
+        new File("pdfs").mkdirs();
 
-            // ==========================================
-            // nombre archivo
-            // ==========================================
-            String archivo =
-                    "pdfs/ticket_"
-                            + System.currentTimeMillis()
-                            + ".pdf";
+        String archivo =
+                "pdfs/ticket_"
+                        + System.currentTimeMillis()
+                        + ".pdf";
 
-            // ==========================================
-            // tamaño real etiqueta 10.5cm x 10.5cm
-            // 105 mm = 297.64 puntos PDF
-            // ==========================================
+        // ==================================================
+        // TAMAÑO TICKET
+        // ==================================================
 
-            float width = 297.64f;
-            float height = 297.64f;
+        Rectangle pageSize =
+                new Rectangle(283, 283);
 
-            Rectangle pageSize =
-                    new Rectangle(width, height);
+        Document document =
+                new Document(
+                        pageSize,
+                        4,
+                        4,
+                        4,
+                        4
+                );
 
-            Document document =
-                    new Document(
-                            pageSize,
-                            0,
-                            0,
-                            0,
-                            0
-                    );
+        PdfWriter writer =
+                PdfWriter.getInstance(
+                        document,
+                        new FileOutputStream(archivo)
+                );
 
-            PdfWriter.getInstance(
-                    document,
-                    new FileOutputStream(archivo)
-            );
+        document.open();
 
-            document.open();
+        // ==================================================
+        // CORRELATIVO
+        // ==================================================
 
-            // ==========================================
-            // fuentes
-            // ==========================================
-            Font titleFont = new Font(
-                    Font.HELVETICA,
-                    18,
-                    Font.BOLD,
-                    new Color(30, 30, 30)
-            );
+        String correlativo =
+                String.format(
+                        "%09d",
+                        pedido.getId()
+                );
 
-            Font subtitleFont = new Font(
-                    Font.HELVETICA,
-                    10,
-                    Font.NORMAL,
-                    Color.GRAY
-            );
+        // ==================================================
+        // FUENTES
+        // ==================================================
 
-            Font labelFont = new Font(
-                    Font.HELVETICA,
-                    12,
-                    Font.BOLD,
-                    new Color(120,120,120)
-            );
+        Font headerFont = new Font(
+                Font.HELVETICA,
+                12,
+                Font.BOLD,
+                Color.BLACK
+        );
 
-            Font valueFont = new Font(
-                    Font.HELVETICA,
-                    12,
-                    Font.NORMAL,
-                    new Color(30,30,30)
-            );
+        Font labelFont = new Font(
+                Font.HELVETICA,
+                7,
+                Font.BOLD,
+                Color.BLACK
+        );
 
-            Font footerFont = new Font(
-                    Font.HELVETICA,
-                    10,
-                    Font.BOLD,
-                    Color.BLACK
-            );
+        Font valueFont = new Font(
+                Font.HELVETICA,
+                7,
+                Font.NORMAL,
+                Color.BLACK
+        );
 
-//            // ==========================================
-//            // titulo
-//            // ==========================================
-//            Paragraph titulo = new Paragraph(
-//                    "REPORTE PEDIDOS",
-//                    titleFont
-//            );
-//
-//            titulo.setAlignment(
-//                    Element.ALIGN_CENTER
-//            );
-//
-//            titulo.setSpacingBefore(5);
-//            titulo.setSpacingAfter(3);
-//
-//            document.add(titulo);
-//
-//            // ==========================================
-//            // fecha general
-//            // ==========================================
-//            Paragraph fechaGeneral = new Paragraph(
-//                    "Generado: "
-//                            + java.time.LocalDateTime.now()
-//                            .format(
-//                                    DateTimeFormatter.ofPattern(
-//                                            "dd/MM/yyyy HH:mm"
-//                                    )
-//                            ),
-//                    subtitleFont
-//            );
-//
-//            fechaGeneral.setAlignment(
-//                    Element.ALIGN_CENTER
-//            );
-//
-//            fechaGeneral.setSpacingAfter(10);
-//
-//            document.add(fechaGeneral);
+        Font itemsFont = new Font(
+                Font.HELVETICA,
+                6,
+                Font.NORMAL,
+                Color.BLACK
+        );
 
-            // ==========================================
-            // recorrer pedidos
-            // ==========================================
+        Font barcodeTextFont = new Font(
+                Font.HELVETICA,
+                9,
+                Font.BOLD,
+                Color.BLACK
+        );
 
-            int contador = 1;
+        Font footerFont = new Font(
+                Font.HELVETICA,
+                8,
+                Font.NORMAL,
+                Color.BLACK
+        );
 
-//            for (Pedido pedido : pedidos) {
-//                    .........
-//                      contador++;
-//            }
+        // ==================================================
+        // TABLA PRINCIPAL
+        // ==================================================
 
-            // ======================================
-            // contenedor principal
-            // ======================================
+        PdfPTable main =
+                new PdfPTable(1);
 
-            PdfPTable container =
-                    new PdfPTable(1);
+        main.setWidthPercentage(100);
 
-            container.setWidthPercentage(92);
+        // ==================================================
+        // HEADER
+        // ==================================================
 
-            PdfPCell cell =
-                    new PdfPCell();
+        PdfPTable header =
+                new PdfPTable(1);
 
-            cell.setBorderWidth(2f);
+        header.setWidthPercentage(100);
 
-            cell.setPadding(15);
-
-            cell.setBorderColor(
-                    new Color(180, 180, 180)
-            );
-
-
-            // ==========================================
-            // logo
-            // ==========================================
-            try {
-
-                Image logo = Image.getInstance(
-                        getClass().getResource(
-                                "/static/logo_lady.png"
+        PdfPCell empresaCell =
+                new PdfPCell(
+                        new Phrase(
+                                "CORPORACION POSH SAC",
+                                headerFont
                         )
                 );
 
-                logo.scaleToFit(55, 55);
+        empresaCell.setHorizontalAlignment(
+                Element.ALIGN_CENTER
+        );
 
-                logo.setAlignment(
-                        Element.ALIGN_CENTER
+        empresaCell.setVerticalAlignment(
+                Element.ALIGN_MIDDLE
+        );
+
+        empresaCell.setFixedHeight(24);
+
+        empresaCell.setBorderWidth(1.2f);
+
+        header.addCell(empresaCell);
+
+        main.addCell(
+                new PdfPCell(header)
+        );
+
+        // ==================================================
+        // DATOS CLIENTE
+        // ==================================================
+
+        PdfPTable datos =
+                new PdfPTable(3);
+
+        datos.setWidthPercentage(100);
+
+        datos.setWidths(
+                new float[]{2f, 0.5f, 4f}
+        );
+
+        agregarFilaBox(
+                datos,
+                "CLIENTE",
+                pedido.getCliente(),
+                labelFont,
+                valueFont
+        );
+
+        agregarFilaBox(
+                datos,
+                "TELEFONO",
+                pedido.getTelefono(),
+                labelFont,
+                valueFont
+        );
+
+        agregarFilaBox(
+                datos,
+                "DNI",
+                pedido.getDni(),
+                labelFont,
+                valueFont
+        );
+
+        agregarFilaBox(
+                datos,
+                "DIRECCION",
+                pedido.getDireccion(),
+                labelFont,
+                valueFont
+        );
+
+        agregarFilaBox(
+                datos,
+                "CIUDAD",
+                pedido.getCiudad(),
+                labelFont,
+                valueFont
+        );
+
+        PdfPCell datosContainer =
+                new PdfPCell(datos);
+
+        datosContainer.setPadding(4);
+
+        datosContainer.setBorderWidth(0.8f);
+
+        main.addCell(datosContainer);
+
+        // ==================================================
+        // PEDIDO + BARCODE
+        // ==================================================
+
+        PdfPTable pedidoTable =
+                new PdfPTable(2);
+
+        pedidoTable.setWidthPercentage(100);
+
+        pedidoTable.setWidths(
+                new float[]{1.3f, 2.7f}
+        );
+
+        // izquierda
+        PdfPCell pedidoTextCell =
+                new PdfPCell(
+                        new Phrase(
+                                "NUMERO DE PEDIDO",
+                                labelFont
+                        )
                 );
 
-                document.add(logo);
+        pedidoTextCell.setVerticalAlignment(
+                Element.ALIGN_MIDDLE
+        );
 
-            } catch (Exception e) {
+        pedidoTextCell.setPaddingLeft(8);
 
-                System.out.println(
-                        "No se pudo cargar logo"
+        pedidoTextCell.setFixedHeight(40);
+
+        pedidoTable.addCell(pedidoTextCell);
+
+        // derecha barcode
+        PdfPCell barcodeCell =
+                new PdfPCell();
+
+        barcodeCell.setPaddingTop(5);
+
+        barcodeCell.setHorizontalAlignment(
+                Element.ALIGN_CENTER
+        );
+
+        Barcode128 barcode =
+                new Barcode128();
+
+        barcode.setCode(correlativo);
+
+        barcode.setFont(null);
+
+        Image barcodeImage =
+                barcode.createImageWithBarcode(
+                        writer.getDirectContent(),
+                        Color.BLACK,
+                        Color.BLACK
                 );
-            }
 
-            // ======================================
-            // linea superior
-            // ======================================
-            Paragraph linea = new Paragraph(
-                    "----------------------------",
-                    subtitleFont
-            );
+        barcodeImage.scalePercent(60);
 
-            linea.setAlignment(
-                    Element.ALIGN_CENTER
-            );
+        barcodeImage.setAlignment(
+                Element.ALIGN_CENTER
+        );
 
-            document.add(linea);
+        barcodeCell.addElement(barcodeImage);
 
-            Paragraph pedidoTitle = new Paragraph(
+        Paragraph codigo =
+                new Paragraph(
+                        correlativo,
+                        barcodeTextFont
+                );
 
-                    "PEDIDO #" + pedido.getId(),
+        codigo.setAlignment(
+                Element.ALIGN_CENTER
+        );
 
-                    new Font(
-                            Font.HELVETICA,
-                            20,
-                            Font.BOLD,
-                            new Color(35,35,35)
-                    )
-            );
+        barcodeCell.addElement(codigo);
 
-            pedidoTitle.setAlignment(
-                    Element.ALIGN_CENTER
-            );
+        pedidoTable.addCell(barcodeCell);
 
-            pedidoTitle.setSpacingBefore(4);
-            pedidoTitle.setSpacingAfter(6);
+        PdfPCell pedidoContainer =
+                new PdfPCell(pedidoTable);
 
-            document.add(pedidoTitle);
+        pedidoContainer.setBorderWidth(1.2f);
 
+        main.addCell(pedidoContainer);
 
-            // ======================================
-// TABLA CENTRAL DE DATOS
-// ======================================
+        // ==================================================
+        // ITEMS
+        // ==================================================
 
-            PdfPTable dataTable = new PdfPTable(2);
+        PdfPTable itemsTable =
+                new PdfPTable(2);
 
-            dataTable.setWidthPercentage(88);
+        itemsTable.setWidthPercentage(100);
 
-            dataTable.setHorizontalAlignment(
-                    Element.ALIGN_CENTER
-            );
+        itemsTable.setWidths(
+                new float[]{1f, 1f}
+        );
 
-            dataTable.setSpacingBefore(5);
+        PdfPCell titleItems =
+                new PdfPCell(
+                        new Phrase(
+                                "ITEMS",
+                                labelFont
+                        )
+                );
 
-            dataTable.setSpacingAfter(5);
+        titleItems.setColspan(2);
 
-            dataTable.setWidths(
-                    new float[]{2f, 3f}
-            );
+        titleItems.setPadding(6);
 
-// ======================================
-// ESTILOS
-// ======================================
+        itemsTable.addCell(titleItems);
 
-            Font dataLabelFont = new Font(
-                    Font.HELVETICA,
-                    13,
-                    Font.BOLD,
-                    Color.BLACK
-            );
+        String[] items =
+                pedido.getProducto()
+                        .split("\\|");
 
-            Font dataValueFont = new Font(
-                    Font.HELVETICA,
-                    13,
-                    Font.NORMAL,
-                    Color.BLACK
-            );
+        // ======================================
+        // límite máximo productos
+        // evita romper ticket 10x10
+        // ======================================
 
-// ======================================
-// CLIENTE
-// ======================================
+        int limite =
+                Math.min(
+                        items.length,
+                        8
+                );
 
-            agregarFila(
-                    dataTable,
-                    "Cliente",
-                    pedido.getCliente(),
-                    dataLabelFont,
-                    dataValueFont
-            );
+        int mitad =
+                (int) Math.ceil(
+                        limite / 2.0
+                );
 
-// ======================================
-// DNI
-// ======================================
+        PdfPCell col1 =
+                new PdfPCell();
 
-            agregarFila(
-                    dataTable,
-                    "DNI",
-                    pedido.getDni(),
-                    dataLabelFont,
-                    dataValueFont
-            );
+        PdfPCell col2 =
+                new PdfPCell();
 
-// ======================================
-// TELEFONO
-// ======================================
+        col1.setFixedHeight(70);
+        col2.setFixedHeight(70);
 
-            agregarFila(
-                    dataTable,
-                    "Teléfono",
-                    pedido.getTelefono(),
-                    dataLabelFont,
-                    dataValueFont
-            );
+        for (int i = 0; i < mitad; i++) {
 
-// ======================================
-// DIRECCION
-// ======================================
+            Paragraph p =
+                    new Paragraph(
+                            "• " + items[i],
+                            itemsFont
+                    );
 
-            agregarFila(
-                    dataTable,
-                    "Dirección",
-                    pedido.getDireccion(),
-                    dataLabelFont,
-                    dataValueFont
-            );
+            p.setSpacingAfter(6);
 
-// ======================================
-// PRODUCTO
-// ======================================
-
-            agregarFila(
-                    dataTable,
-                    "Producto",
-                    pedido.getProducto(),
-                    dataLabelFont,
-                    dataValueFont
-            );
-
-// ======================================
-// AGREGAR TABLA
-// ======================================
-
-            document.add(dataTable);
-
-
-
-            // ==========================================
-            // total pedidos
-            // ==========================================
-//            Paragraph total = new Paragraph(
-//                    "TOTAL: " + pedidos.size(),
-//                    titleFont
-//            );
-//
-//            total.setAlignment(
-//                    Element.ALIGN_CENTER
-//            );
-//
-//            total.setSpacingBefore(10);
-//
-//            document.add(total);
-
-            // ==========================================
-            // footer
-            // ======================================
-            // fecha pedido
-            // ======================================
-
-            Paragraph fechaPedido = new Paragraph(
-
-                    "Fecha: "
-                            + pedido.getFechaRegistro()
-                            .format(
-                                    DateTimeFormatter.ofPattern(
-                                            "dd/MM/yyyy HH:mm"
-                                    )
-                            ),
-
-                    footerFont
-            );
-
-            fechaPedido.setAlignment(
-                    Element.ALIGN_CENTER
-            );
-
-            fechaPedido.setSpacingBefore(10);
-
-            document.add(fechaPedido);
-
-            document.close();
-
-            return archivo;
-
-        } catch (Exception e) {
-
-            throw new RuntimeException(e);
+            col1.addElement(p);
         }
+
+        for (int i = mitad; i < limite; i++) {
+
+            Paragraph p =
+                    new Paragraph(
+                            "• " + items[i],
+                            itemsFont
+                    );
+
+            p.setSpacingAfter(6);
+
+            col2.addElement(p);
+        }
+
+        itemsTable.addCell(col1);
+        itemsTable.addCell(col2);
+
+        PdfPCell itemsContainer =
+                new PdfPCell(itemsTable);
+
+        itemsContainer.setBorderWidth(1.2f);
+
+        main.addCell(itemsContainer);
+
+        // ==================================================
+        // FOOTER
+        // ==================================================
+
+        Paragraph fecha =
+                new Paragraph(
+
+                        pedido.getFechaRegistro()
+                                .format(
+                                        DateTimeFormatter.ofPattern(
+                                                "dd/MM/yyyy HH:mm"
+                                        )
+                                ),
+
+                        footerFont
+                );
+
+        fecha.setAlignment(
+                Element.ALIGN_CENTER
+        );
+
+        PdfPCell footerCell =
+                new PdfPCell();
+
+        footerCell.setFixedHeight(18);
+
+        footerCell.setVerticalAlignment(
+                Element.ALIGN_MIDDLE
+        );
+
+        footerCell.addElement(fecha);
+
+        footerCell.setBorderWidth(1.2f);
+
+        main.addCell(footerCell);
+
+        // ==================================================
+        // AGREGAR TODO
+        // ==================================================
+
+        document.add(main);
+
+        document.close();
+
+        return archivo;
+
+    } catch (Exception e) {
+
+        throw new RuntimeException(e);
     }
+}
 
     // ==============================================
     // agregar filas
@@ -1002,4 +1054,112 @@ public class PdfService {
 
         table.addCell(valueCell);
     }
+
+    private void agregarFilaCompacta(
+
+            PdfPTable table,
+            String titulo,
+            String valor,
+            Font labelFont,
+            Font valueFont
+
+    ) {
+
+        PdfPCell labelCell =
+                new PdfPCell(
+                        new Phrase(
+                                titulo,
+                                labelFont
+                        )
+                );
+
+        labelCell.setBorder(
+                Rectangle.NO_BORDER
+        );
+
+        labelCell.setPaddingBottom(2);
+
+        PdfPCell valueCell =
+                new PdfPCell(
+                        new Phrase(
+                                valor != null ? valor : "",
+                                valueFont
+                        )
+                );
+
+        valueCell.setBorder(
+                Rectangle.NO_BORDER
+        );
+
+        valueCell.setPaddingBottom(2);
+
+        table.addCell(labelCell);
+
+        table.addCell(valueCell);
+    }
+
+    private void agregarFilaBox(
+
+            PdfPTable table,
+            String titulo,
+            String valor,
+            Font labelFont,
+            Font valueFont
+
+    ) {
+
+        PdfPCell label =
+                new PdfPCell(
+                        new Phrase(
+                                titulo,
+                                labelFont
+                        )
+                );
+
+        label.setBorder(
+                Rectangle.NO_BORDER
+        );
+
+        label.setPaddingBottom(5);
+
+        PdfPCell dots =
+                new PdfPCell(
+                        new Phrase(
+                                ":",
+                                labelFont
+                        )
+                );
+
+        dots.setBorder(
+                Rectangle.NO_BORDER
+        );
+
+        dots.setHorizontalAlignment(
+                Element.ALIGN_CENTER
+        );
+
+        PdfPCell value =
+                new PdfPCell(
+                        new Phrase(
+                                valor != null
+                                        ? valor
+                                        : "",
+                                valueFont
+                        )
+                );
+
+        value.setBorder(
+                Rectangle.NO_BORDER
+        );
+
+        value.setPaddingBottom(5);
+
+        table.addCell(label);
+
+        table.addCell(dots);
+
+        table.addCell(value);
+    }
+
+
 }

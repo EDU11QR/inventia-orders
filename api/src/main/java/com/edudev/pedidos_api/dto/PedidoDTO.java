@@ -15,6 +15,8 @@ public class PedidoDTO {
 
     private String direccion;
 
+    private String ciudad;
+
     private String producto;
 
     private String messageId;

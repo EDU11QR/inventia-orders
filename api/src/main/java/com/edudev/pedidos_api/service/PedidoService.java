@@ -70,6 +70,7 @@ public class PedidoService {
                 .dni(dto.getDni())
                 .telefono(dto.getTelefono())
                 .direccion(dto.getDireccion())
+                .ciudad(dto.getCiudad())
                 .producto(dto.getProducto())
                 .messageId(dto.getMessageId())
                 .remoteJid(dto.getRemoteJid())
