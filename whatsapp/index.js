@@ -5,12 +5,15 @@ import crypto from "crypto";
 import {
     makeWASocket,
     useMultiFileAuthState,
-    DisconnectReason
+    DisconnectReason,
+    fetchLatestWaWebVersion
 } from "@whiskeysockets/baileys";
 
 import { parsePedido } from "./parsers/pedidoParser.js";
 
 async function startBot() {
+
+    let keepAliveInterval = null;
 
     // ==========================================
     // sesión persistente whatsapp
@@ -21,10 +24,25 @@ async function startBot() {
         await useMultiFileAuthState("auth");
 
     // ==========================================
+    // obtener última versión de WhatsApp Web
+    // ==========================================
+
+    let version = [2, 3000, 1015901307];
+    try {
+        const { version: latestVersion, isLatest } = await fetchLatestWaWebVersion();
+        version = latestVersion;
+        console.log(`📡 Usando versión de WhatsApp Web: ${version.join(".")}, es la última: ${isLatest}`);
+    } catch (err) {
+        console.log("⚠️ No se pudo obtener la última versión de WhatsApp Web, usando versión fallback.");
+    }
+
+    // ==========================================
     // socket whatsapp
     // ==========================================
 
     const sock = makeWASocket({
+
+        version,
 
         auth: state,
 
@@ -75,6 +93,31 @@ async function startBot() {
                 console.log(
                     "✅ WhatsApp conectado"
                 );
+
+                if (keepAliveInterval) {
+                    clearInterval(keepAliveInterval);
+                }
+
+                keepAliveInterval = setInterval(async () => {
+
+                    try {
+
+                        await sock.sendPresenceUpdate(
+                            "available"
+                        );
+
+                        console.log(
+                            "Keep alive enviado"
+                        );
+
+                    } catch (err) {
+
+                        console.log(
+                            "⚠️ Error keep alive"
+                        );
+                    }
+
+                }, 60000);
             }
 
             // ======================================
@@ -83,6 +126,11 @@ async function startBot() {
 
             if (connection === "close") {
 
+                if (keepAliveInterval) {
+                    clearInterval(keepAliveInterval);
+                    keepAliveInterval = null;
+                }
+
                 const shouldReconnect =
 
                     lastDisconnect?.error?.output
@@ -90,16 +138,20 @@ async function startBot() {
                     DisconnectReason.loggedOut;
 
                 console.log(
-                    "⚠️ WhatsApp desconectado"
+                    "⚠️ WhatsApp desconectado. Código de estado:",
+                    lastDisconnect?.error?.output?.statusCode,
+                    lastDisconnect?.error?.message || ""
                 );
 
                 if (shouldReconnect) {
 
                     console.log(
-                        "🔄 Reconectando..."
+                        "🔄 Reconectando en 5 segundos..."
                     );
 
-                    startBot();
+                    setTimeout(() => {
+                        startBot();
+                    }, 5000);
                 }
             }
         }
@@ -191,7 +243,7 @@ async function startBot() {
                 if (!text) {
 
                     console.log(
-                        "⛔ No se encontró texto"
+                        "⛔ No se encontró pedido"
                     );
 
                     return;
@@ -322,5 +374,9 @@ async function startBot() {
     );
 }
 
-startBot();
+setTimeout(() => {
+
+    startBot();
+
+}, 5000);
 

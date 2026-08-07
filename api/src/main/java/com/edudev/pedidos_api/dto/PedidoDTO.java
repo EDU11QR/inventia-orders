@@ -19,6 +19,8 @@ public class PedidoDTO {
 
     private String producto;
 
+    private String motivoCancelacion;
+
     private String messageId;
 
     private String remoteJid;

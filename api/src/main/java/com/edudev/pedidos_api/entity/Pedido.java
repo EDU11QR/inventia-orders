@@ -66,5 +66,12 @@ public class Pedido {
     @Enumerated(EnumType.STRING)
     private EstadoPedido estado;
 
+    @Column(columnDefinition =  "TEXT")
+    private String motivoCancelacion;
+
+    private LocalDateTime fechaCancelacion;
+
     private LocalDateTime fechaRegistro;
+
+
 }

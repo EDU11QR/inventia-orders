@@ -8,13 +8,16 @@ import com.edudev.pedidos_api.service.PedidoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -44,6 +47,52 @@ public class PedidoController {
     public List<Pedido> listarPedidos() {
 
         return pedidoService.listarPedidos();
+    }
+
+    @GetMapping("/exportar-excel")
+    public ResponseEntity<?> exportarPedidosExcel(
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fechaInicio,
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fechaFin
+    ) {
+
+        if (fechaInicio.isAfter(fechaFin)) {
+
+            return ResponseEntity.badRequest()
+                    .body("La fecha de inicio no puede ser posterior a la fecha de fin");
+        }
+
+        byte[] excel =
+                pedidoService.exportarPedidosExcel(
+                        fechaInicio,
+                        fechaFin
+                );
+
+        if (excel == null) {
+
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("No se encontraron pedidos en el rango de fechas seleccionado");
+        }
+
+        String nombreArchivo = "pedidos_"
+                + fechaInicio
+                + "_al_"
+                + fechaFin
+                + ".xlsx";
+
+        return ResponseEntity.ok()
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + nombreArchivo + "\""
+                )
+                .contentType(MediaType.parseMediaType(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ))
+                .body(excel);
     }
 
     // =========================================================
@@ -119,6 +168,17 @@ public class PedidoController {
     ) {
 
         return pedidoService.actualizarEstado(id, estado);
+    }
+
+    @PutMapping("/{id}/cancelar")
+    public Pedido cancelarPedido(
+            @PathVariable Long id,
+            @RequestBody PedidoDTO dto
+    ){
+        return pedidoService.cancelarPedido(
+                id,
+                dto.getMotivoCancelacion()
+        );
     }
 
     // =========================================================

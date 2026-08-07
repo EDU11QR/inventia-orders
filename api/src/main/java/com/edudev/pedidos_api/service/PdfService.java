@@ -552,12 +552,8 @@ import org.springframework.stereotype.Service;
 import java.awt.Color;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
-import java.awt.Color;
-import com.lowagie.text.pdf.draw.LineSeparator;
-import java.util.List;
+
 
 @Service
 public class PdfService {
@@ -621,21 +617,21 @@ public String generarTicket(Pedido pedido) {
 
         Font labelFont = new Font(
                 Font.HELVETICA,
-                7,
+                8,
                 Font.BOLD,
                 Color.BLACK
         );
 
         Font valueFont = new Font(
                 Font.HELVETICA,
-                7,
+                8,
                 Font.NORMAL,
                 Color.BLACK
         );
 
         Font itemsFont = new Font(
                 Font.HELVETICA,
-                6,
+                7,
                 Font.NORMAL,
                 Color.BLACK
         );
@@ -675,7 +671,7 @@ public String generarTicket(Pedido pedido) {
         PdfPCell empresaCell =
                 new PdfPCell(
                         new Phrase(
-                                "CORPORACION POSH SAC",
+                                " POSH ",
                                 headerFont
                         )
                 );
@@ -777,7 +773,7 @@ public String generarTicket(Pedido pedido) {
         PdfPCell pedidoTextCell =
                 new PdfPCell(
                         new Phrase(
-                                "NUMERO DE PEDIDO",
+                                "NRO DE PEDIDO",
                                 labelFont
                         )
                 );

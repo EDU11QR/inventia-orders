@@ -8,5 +8,7 @@ public enum EstadoPedido {
 
     IMPRESO,
 
-    ERROR_IMPRESION
+    ERROR_IMPRESION,
+
+    CANCELADO
 }

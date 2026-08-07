@@ -43,6 +43,11 @@ Inventia-orders/
 │   ├── Parser de pedidos
 │   └── Integración con backend
 │
+├── admin-dashboard
+│   ├── Frontend React (fuente)
+│   ├── Dashboard administrativo
+│   └── Integración con la API
+│
 └── assets
 ```
 

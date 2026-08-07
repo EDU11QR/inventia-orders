@@ -7,6 +7,7 @@ import com.edudev.pedidos_api.repository.PedidoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -20,6 +21,8 @@ public class PedidoService {
 
     // Servicio encargado de generar el PDF consolidado
     private final PdfService pdfService;
+
+    private final ExcelService excelService;
 
 
     // =========================================================
@@ -97,6 +100,44 @@ public class PedidoService {
     }
 
     // =========================================================
+    // EXPORTAR PEDIDOS POR RANGO DE FECHA
+    // =========================================================
+    // Consulta exclusivamente los pedidos registrados dentro
+    // del rango [fechaInicio, fechaFin + 1 dia) sobre
+    // fechaRegistro, sin cargar toda la tabla
+    // =========================================================
+    public byte[] exportarPedidosExcel(
+            LocalDate fechaInicio,
+            LocalDate fechaFin
+    ) {
+
+        if (fechaInicio.isAfter(fechaFin)) {
+
+            throw new IllegalArgumentException(
+                    "La fecha de inicio no puede ser posterior a la fecha de fin"
+            );
+        }
+
+        LocalDateTime inicio = fechaInicio.atStartOfDay();
+
+        LocalDateTime finExclusivo =
+                fechaFin.plusDays(1).atStartOfDay();
+
+        List<Pedido> pedidos =
+                pedidoRepository.findByFechaRegistroEntre(
+                        inicio,
+                        finExclusivo
+                );
+
+        if (pedidos.isEmpty()) {
+
+            return null;
+        }
+
+        return excelService.generarExcel(pedidos);
+    }
+
+    // =========================================================
     // ACTUALIZAR ESTADO DEL PEDIDO
     // =========================================================
     // Permite cambiar el estado manualmente desde
@@ -117,6 +158,28 @@ public class PedidoService {
     }
 
     // =========================================================
+    // CANCELAR PEDIDO
+    // =========================================================
+    // Permite cancelar un pedido registrando
+    // motivo y fecha de cancelacion
+    // =========================================================
+
+    public Pedido cancelarPedido(Long id, String motivo){
+        Pedido pedido = pedidoRepository.findById(id)
+                .orElseThrow(()-> new RuntimeException("Pedido no encontrado"));
+
+        pedido.setEstado(EstadoPedido.CANCELADO);
+        pedido.setMotivoCancelacion(motivo);
+        pedido.setFechaCancelacion(LocalDateTime.now());
+
+        return pedidoRepository.save(pedido);
+    }
+
+
+
+
+
+    // =========================================================
 // ACTUALIZAR PEDIDO
 // =========================================================
 // Permite editar manualmente información del pedido
@@ -129,11 +192,20 @@ public class PedidoService {
                 .orElseThrow(() ->
                         new RuntimeException("Pedido no encontrado"));
 
+
+        if (pedido.getEstado() == EstadoPedido.CANCELADO) {
+
+            throw new RuntimeException(
+                    "No se puede imprimir un pedido cancelado"
+            );
+        }
+
         // actualizar datos
         pedido.setCliente(dto.getCliente());
         pedido.setDni(dto.getDni());
         pedido.setTelefono(dto.getTelefono());
         pedido.setDireccion(dto.getDireccion());
+        pedido.setCiudad(dto.getCiudad());
         pedido.setProducto(dto.getProducto());
 
         // guardar cambios
