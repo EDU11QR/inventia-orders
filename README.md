@@ -1,220 +1,284 @@
 # INVENTIA ORDERS
 
+> Automatización de pedidos recibidos por WhatsApp para centralizar su registro, gestión operativa, impresión y exportación.
+
+Inventia Orders es un sistema fullstack para capturar pedidos con un listener de WhatsApp, persistirlos en MySQL y administrarlos desde un dashboard web. El flujo incluye detección y deduplicación de mensajes, gestión de estados, edición, cancelación, tickets PDF e informes Excel por rango de fechas.
+
+## Capturas
+
+### Dashboard administrativo
+
+La captura versionada actual es `assets/dashboard.png`. No existe todavía `assets/dashboard-v2.png`.
+
 ![Dashboard](assets/dashboard.png)
 
-Sistema fullstack de gestión de pedidos con automatización mediante WhatsApp, generación automática de etiquetas PDF y dashboard administrativo en tiempo real.
+## Características principales
 
----
+- Recepción de pedidos desde WhatsApp mediante Baileys.
+- Sesión persistente con QR en terminal, reconexión automática y keep-alive del listener.
+- Validación del formato de pedido y deduplicación mediante el identificador del mensaje de WhatsApp.
+- Persistencia de clientes, datos de entrega, productos, estado, fechas y metadatos del chat en MySQL.
+- Dashboard React con actualización periódica cada 3 segundos.
+- Búsqueda por cliente o producto, filtros por estado y paginación de 10 pedidos por página.
+- Indicadores para pedidos pendientes, impresos y cancelados.
+- Edición de datos de pedido desde el dashboard.
+- Cambio de estado y cancelación con motivo registrado.
+- Generación y descarga de tickets PDF individuales con código de barras.
+- Exportación de pedidos a Excel por rango de fechas.
+- Pruebas de backend para la generación de Excel y los límites del rango de exportación.
 
-# Descripción
-
-Inventia Orders es una solución desarrollada para automatizar la recepción y gestión de pedidos desde WhatsApp hacia un sistema administrativo centralizado.
-
-El sistema procesa mensajes automáticamente, registra pedidos en base de datos, permite gestionar estados desde un dashboard visual y genera etiquetas PDF listas para impresión.
-
----
-
-# Características Principales
-
-* Recepción automática de pedidos desde WhatsApp
-* Listener en tiempo real usando Baileys
-* Dashboard administrativo integrado
-* Generación automática de etiquetas PDF
-* Gestión de estados de pedidos
-* Descarga individual de tickets
-* Persistencia en MySQL
-* Arquitectura escalable y separada
-* Automatización comercial real
-
----
-
-# Arquitectura del Proyecto
+## Arquitectura
 
 ```text
-Inventia-orders/
-│
-├── api
-│   ├── Backend Spring Boot
-│   ├── Frontend integrado
-│   └── Generación de PDFs
-│
-├── whatsapp
-│   ├── Listener WhatsApp
-│   ├── Parser de pedidos
-│   └── Integración con backend
-│
-├── admin-dashboard
-│   ├── Frontend React (fuente)
-│   ├── Dashboard administrativo
-│   └── Integración con la API
-│
-└── assets
+                         WhatsApp
+                            |
+                            v
+               whatsapp/ (Node.js + Baileys)
+               - QR y sesión persistente
+               - Parseo y deduplicación de mensajes
+                            |
+                            | POST /api/pedidos
+                            v
+             api/ (Spring Boot 4.0.6, Java 17)
+             - API REST y reglas de negocio
+             - PDF / Excel
+             - Recursos estáticos compilados
+                  |                    |
+                  v                    v
+             MySQL                 pdfs/ locales
+             tabla pedidos         tickets generados
+                  ^
+                  |
+       admin-dashboard/ (React + Vite + Tailwind CSS)
+       - Desarrollo del dashboard
+       - Consulta la API en localhost:8081
 ```
 
----
+El código fuente del dashboard vive en `admin-dashboard/`. El backend también sirve una compilación del frontend desde `api/src/main/resources/static/` al abrir `http://localhost:8081/`.
 
-# Tecnologías Utilizadas
+## Tecnologías
 
-## Backend
+| Área | Tecnologías detectadas |
+| --- | --- |
+| Backend | Java 17, Spring Boot 4.0.6, Spring Data JPA, Hibernate, Lombok, MySQL Connector/J |
+| Persistencia | MySQL |
+| Frontend | React 19.2.6, React DOM 19.2.6, Vite 8.0.12, Tailwind CSS 4.3.0, Axios 1.16.0 |
+| WhatsApp | Node.js (versión no fijada en el repositorio), Baileys 7.0.0-rc10, qrcode-terminal 0.12.0, Axios 1.16.0 |
+| Documentos | OpenPDF 1.3.39, Apache POI OOXML 5.3.0 |
+| Calidad | JUnit 5 y Mockito en las pruebas del backend |
+| Build | Maven Wrapper 3.9.15, npm |
 
-* Java v17
-* Spring Boot v4.0.6
-* Spring Data JPA
-* Hibernate
-* MySQL
+`ZXing 3.5.3` está declarado en el `pom.xml`, pero no tiene uso directo en el código actual. El código de barras del ticket se genera con `Barcode128` de OpenPDF.
 
-## Frontend
+## Dashboard Administrativo
 
-* React
-* Vite
-* JavaScript
-* CSS
+El dashboard consume la API en `http://localhost:8081/api/pedidos` y ofrece:
 
-## Automatización
+- **Búsqueda:** filtra en el cliente y el texto de productos.
+- **Filtros:** muestra todos los pedidos o filtra por `PENDIENTE`, `IMPRESO` y `CANCELADO`.
+- **Paginación:** muestra 10 registros por página.
+- **Indicadores:** cuenta pedidos pendientes, impresos y cancelados.
+- **Edición:** permite actualizar cliente, DNI, teléfono, dirección, ciudad y productos.
+- **Cambio de estado:** permite marcar pedidos pendientes como impresos o cancelarlos; los impresos también pueden cancelarse.
+- **Cancelación:** exige un motivo y registra la fecha de cancelación.
+- **Impresión:** descarga el ticket PDF de un pedido no cancelado y actualiza su estado de impresión.
+- **Exportación Excel:** solicita un rango de fechas y descarga un archivo `.xlsx`.
 
-* Node.js
-* Baileys
-* Axios
-* qrcode-terminal
+La interfaz se actualiza por polling cada 3 segundos; no usa WebSockets.
 
-## PDF
+## Automatización WhatsApp
 
-* OpenPDF / iText
+El listener de `whatsapp/` procesa el flujo siguiente:
 
----
+1. Inicia una sesión de WhatsApp Web con Baileys y muestra un QR en la terminal cuando es necesario.
+2. Guarda la sesión en `whatsapp/auth/`, directorio ignorado por Git.
+3. Escucha mensajes de texto convencionales, extendidos, efímeros y de visualización única compatibles con el parser.
+4. Identifica pedidos que contienen como mínimo `CLIENTE:`, `DNI:`, `TELEFONO:` y `DIRECCION:`.
+5. Extrae los campos del pedido; `CIUDAD:` es opcional y los productos multilínea se unen con `|`.
+6. Adjunta el ID del mensaje, el chat de origen y la fecha original del mensaje.
+7. Envía el pedido a `POST http://localhost:8081/api/pedidos`.
+8. El backend rechaza duplicados cuando el `messageId` ya existe.
 
-# Dashboard Administrativo
+El listener intenta usar la versión más reciente de WhatsApp Web, se reconecta cinco segundos después de desconexiones no causadas por cierre de sesión y envía presencia cada minuto mientras está conectado.
 
-El sistema incluye un dashboard para:
+![Listener de WhatsApp](assets/listener.png)
 
-* Visualizar pedidos en tiempo real
-* Gestionar estados de pedidos
-* Buscar clientes y productos
-* Descargar tickets PDF
-* Controlar pedidos pendientes e impresos
+## Generación PDF
 
-![Dashboard](assets/dashboard.png)
+La impresión individual disponible en el dashboard llama a `POST /api/pedidos/{id}/imprimir`.
 
----
+El backend:
 
-# Automatización WhatsApp
+1. Cambia el pedido a `EN_PROCESO`.
+2. Genera un ticket cuadrado en `pdfs/ticket_<timestamp>.pdf`.
+3. Incluye cliente, teléfono, DNI, dirección, ciudad, productos, fecha, identificador de pedido y un código de barras `Barcode128` basado en el ID del pedido con nueve dígitos.
+4. Limita la presentación del ticket a ocho productos para preservar el tamaño del formato.
+5. Devuelve el PDF para descarga, marca el pedido como `IMPRESO` y registra `fechaImpresion`.
 
-El listener desarrollado con Baileys permite:
+Los archivos de `pdfs/` contienen datos personales y están excluidos del repositorio.
 
-* Escuchar mensajes automáticamente
-* Procesar pedidos en tiempo real
-* Detectar nuevos pedidos
-* Enviar información directamente al backend
-* Persistir pedidos automáticamente
+![Ticket PDF](assets/ticket.png)
 
-![WhatsApp Listener](assets/listener.png)
+## Exportación Excel
 
----
+El dashboard solicita `GET /api/pedidos/exportar-excel?fechaInicio=YYYY-MM-DD&fechaFin=YYYY-MM-DD`.
 
-# Etiquetas PDF
+- El rango se consulta por `fechaRegistro` e incluye ambos días seleccionados.
+- Si no hay pedidos, la API responde `404`.
+- El archivo se descarga como `pedidos_<inicio>_al_<fin>.xlsx`.
+- La hoja `Pedidos` tiene 16 columnas, encabezados en negrita, autofiltro y primera fila congelada.
+- Los datos disponibles incluyen fecha, cliente, DNI, celular, dirección, ciudad, productos, estado, motivo de cancelación y observaciones.
+- Las columnas de total, medio de compra, método de pago, costo de envío, número de operación y envío/agencia se generan vacías porque esos valores no están modelados actualmente en la entidad `Pedido`.
 
-El sistema genera etiquetas individuales automáticamente para cada pedido.
+## Instalación
 
-## Características
+### Requisitos
 
-* Diseño personalizado
-* Información centrada
-* Generación dinámica
-* Descarga automática desde navegador
+- Java 17.
+- MySQL en ejecución.
+- Node.js y npm para el dashboard y el listener. El repositorio no fija una versión de Node.js.
 
-![Etiqueta PDF](assets/ticket.png)
-
----
-
-# Instalación
-
-## 1. Clonar repositorio
+### 1. Clonar el repositorio
 
 ```bash
 git clone https://github.com/EDU11QR/inventia-orders.git
+cd inventia-orders
 ```
 
----
+### 2. Configurar MySQL
 
-## 2. Backend
+Crear el archivo local de configuración a partir del ejemplo:
 
-Entrar al proyecto:
+```bash
+cp api/src/main/resources/application-example.yml api/src/main/resources/application.yml
+```
+
+Actualizar en `api/src/main/resources/application.yml` la URL JDBC, el usuario y la contraseña de MySQL. El ejemplo usa el puerto de aplicación `8081`.
+
+### 3. Ejecutar el backend
+
+macOS/Linux:
 
 ```bash
 cd api
-```
-
-Ejecutar:
-
-```bash
 ./mvnw spring-boot:run
 ```
 
-o usar:
+Windows:
 
-```bash
-iniciar-backend.bat
+```bat
+cd api
+mvnw.cmd spring-boot:run
 ```
 
----
+Con el backend iniciado, el dashboard compilado incluido en `api/src/main/resources/static/` se sirve en:
 
-## 3. Listener WhatsApp
+```text
+http://localhost:8081/
+```
 
-Entrar al proyecto:
+Para ejecutar las pruebas del backend:
+
+```bash
+./mvnw test
+```
+
+> `api/iniciar-backend.bat` existe, pero solo ejecuta un JAR ya preparado y no compila el proyecto. Para un clon limpio, usa Maven Wrapper como se indica arriba.
+
+### 4. Ejecutar el dashboard en desarrollo
+
+En otra terminal:
+
+```bash
+cd admin-dashboard
+npm ci
+npm run dev
+```
+
+Para generar el build de Vite:
+
+```bash
+npm run build
+```
+
+El build se genera en `admin-dashboard/dist/`. Actualmente no hay un script que lo copie automáticamente a `api/src/main/resources/static/`; esa sincronización debe realizarse como parte del proceso de despliegue.
+
+### 5. Ejecutar el listener de WhatsApp
+
+En otra terminal:
 
 ```bash
 cd whatsapp
+npm ci
+npm start
 ```
 
-Instalar dependencias:
+En el primer inicio, escanear el QR mostrado en la terminal. El script `whatsapp/iniciar-whatsapp.bat` ejecuta `node index.js` en Windows después de instalar dependencias.
 
-```bash
-npm install
+## Configuración
+
+| Elemento | Ubicación | Estado actual |
+| --- | --- | --- |
+| MySQL | `api/src/main/resources/application.yml` | Archivo local ignorado por Git; partir de `application-example.yml`. |
+| Puerto API | `application.yml` | `8081` en el ejemplo. |
+| URL del dashboard | `admin-dashboard/src/services/pedidoService.js` | Hardcodeada a `http://localhost:8081/api/pedidos`. |
+| URL del listener | `whatsapp/index.js` | Hardcodeada a `http://localhost:8081/api/pedidos`. |
+| Sesión WhatsApp | `whatsapp/auth/` | Generada por Baileys e ignorada por Git. No debe compartirse. |
+| PDFs | `api/pdfs/` | Generados localmente e ignorados por Git. Contienen datos de pedidos. |
+
+## Estructura del proyecto
+
+```text
+inventia-orders/
+├── admin-dashboard/                    # Fuente del dashboard
+│   ├── src/
+│   │   ├── components/EditarPedidoModal.jsx
+│   │   ├── pages/PedidosPage.jsx
+│   │   └── services/pedidoService.js
+│   ├── package.json
+│   └── vite.config.js
+├── api/                                # Backend Spring Boot
+│   ├── src/main/java/com/edudev/pedidos_api/
+│   │   ├── controller/
+│   │   ├── dto/
+│   │   ├── entity/
+│   │   ├── repository/
+│   │   └── service/
+│   ├── src/main/resources/
+│   │   ├── application-example.yml
+│   │   └── static/                     # Build del dashboard servido por Spring
+│   ├── src/test/
+│   ├── pom.xml
+│   └── mvnw
+├── whatsapp/                           # Listener Baileys
+│   ├── parsers/pedidoParser.js
+│   ├── index.js
+│   └── package.json
+├── assets/                             # Capturas del README
+│   ├── dashboard.png
+│   ├── listener.png
+│   └── ticket.png
+├── .gitignore
+└── README.md
 ```
 
-Ejecutar:
+## Roadmap
 
-```bash
-node index.js
-```
+Las siguientes son mejoras sugeridas; no representan funcionalidades ya implementadas:
 
-o usar:
+- Configurar URLs, credenciales y puertos mediante variables de entorno.
+- Añadir autenticación, autorización y una política CORS restrictiva para entornos productivos.
+- Automatizar la publicación del build de `admin-dashboard/` dentro de los recursos estáticos del backend.
+- Incorporar pruebas de interfaz y pruebas end-to-end del flujo completo.
+- Agregar CI para ejecutar lint, pruebas y build en cada cambio.
+- Versionar una licencia MIT y definir pautas de contribución.
+- Sustituir o actualizar las capturas por imágenes anonimizadas del dashboard y de los flujos nuevos.
 
-```bash
-iniciar-whatsapp.bat
-```
+## Autor
 
----
-
-# Base de Datos
-
-Configurar MySQL desde:
-
-```yaml
-application.yml
-```
-
----
-
-# Objetivo del Proyecto
-
-Este proyecto fue desarrollado como:
-
-* Automatización comercial real
-* Sistema fullstack escalable
-* Proyecto profesional de portafolio
-* Base para futuras integraciones comerciales
-
----
-
-# Autor
-
-## EduDev
-
+**EduDev**
 Desarrollador Fullstack enfocado en automatización, sistemas comerciales y arquitectura escalable.
 
----
+## Licencia
 
-# Estado del Proyecto
-
-Proyecto en evolución continua.
+El repositorio no incluye actualmente un archivo de licencia. Se recomienda adoptar la [licencia MIT](https://opensource.org/license/mit/) antes de aceptar contribuciones o distribuir el proyecto.
