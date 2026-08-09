@@ -2,15 +2,64 @@
 
 > Automatización de pedidos recibidos por WhatsApp para centralizar su registro, gestión operativa, impresión y exportación.
 
-Inventia Orders es un sistema fullstack para capturar pedidos con un listener de WhatsApp, persistirlos en MySQL y administrarlos desde un dashboard web. El flujo incluye detección y deduplicación de mensajes, gestión de estados, edición, cancelación, tickets PDF e informes Excel por rango de fechas.
+Inventia Orders es un sistema fullstack que convierte la bandeja de WhatsApp en un canal de venta ordenado. Cada pedido que el cliente escribe como mensaje es detectado, normalizado y registrado automáticamente; luego se gestiona desde un dashboard web, se imprime como ticket PDF y se exporta a Excel por rango de fechas. Reemplaza las planillas manuales, reduce los errores de registro y da trazabilidad completa a cada pedido desde su llegada hasta su cierre.
+
+## Problema que resuelve
+
+- Los pedidos llegan mezclados con mensajes personales en WhatsApp y se pierden entre la conversación.
+- El registro manual en cuadernos o Excel es propenso a errores, datos incompletos y duplicados.
+- No hay visibilidad del estado de cada pedido (pendiente, impreso, cancelado).
+- Reimprimir un ticket, localizar un pedido o cancelarlo con justificativo es lento y sin trazabilidad.
+- Consolidar las ventas de un rango de fechas consume tiempo valioso.
+
+Inventia Orders centraliza la recepción, normaliza los datos, asigna un estado a cada pedido y automatiza la impresión y la exportación.
+
+## Beneficios
+
+- **Captura automática:** cada pedido llega a la base de datos sin escribir a mano.
+- **Deduplicación:** un mismo mensaje no se registra dos veces.
+- **Control en tiempo real:** indicadores de pedidos pendientes, impresos y cancelados.
+- **Tickets PDF con código de barras:** listos para imprimir.
+- **Informes Excel por rango de fechas:** para análisis, caja y reportes.
+- **Trazabilidad:** edición de datos y cancelación con motivo registrado.
+
+## Caso de uso
+
+Un negocio de venta por WhatsApp recibe el pedido de un cliente como mensaje de texto:
+
+```text
+CLIENTE: Juan Pérez
+DNI: 12345678
+TELEFONO: 999888777
+DIRECCION: Av. Los Laureles 123
+CIUDAD: Lima
+- 2 Pizza familiar
+- 1 Gaseosa 3L
+```
+
+El listener detecta el mensaje, lo envía a la API y el pedido aparece al instante en el dashboard como `PENDIENTE`. El operador lo revisa, puede editarlo si faltan datos, lo imprime como ticket y queda registrado como `IMPRESO`; también puede cancelarlo con un motivo si el cliente lo anula. Al cierre del día exporta el Excel del rango de fechas para su reporte.
 
 ## Capturas
 
-### Dashboard administrativo
+### Dashboard principal
 
-La captura versionada actual es `assets/dashboard.png`. No existe todavía `assets/dashboard-v2.png`.
+![Dashboard principal](assets/dashboard-v2.png)
 
-![Dashboard](assets/dashboard.png)
+### Edición de pedido
+
+![Edición de pedido](assets/editar-pedido.png)
+
+### Exportación a Excel
+
+![Exportación a Excel](assets/exportar-excel.png)
+
+### Listener de WhatsApp
+
+![Listener de WhatsApp](assets/listener.png)
+
+### Ticket PDF
+
+![Ticket PDF](assets/ticket.png)
 
 ## Características principales
 
@@ -101,8 +150,6 @@ El listener de `whatsapp/` procesa el flujo siguiente:
 
 El listener intenta usar la versión más reciente de WhatsApp Web, se reconecta cinco segundos después de desconexiones no causadas por cierre de sesión y envía presencia cada minuto mientras está conectado.
 
-![Listener de WhatsApp](assets/listener.png)
-
 ## Generación PDF
 
 La impresión individual disponible en el dashboard llama a `POST /api/pedidos/{id}/imprimir`.
@@ -116,8 +163,6 @@ El backend:
 5. Devuelve el PDF para descarga, marca el pedido como `IMPRESO` y registra `fechaImpresion`.
 
 Los archivos de `pdfs/` contienen datos personales y están excluidos del repositorio.
-
-![Ticket PDF](assets/ticket.png)
 
 ## Exportación Excel
 
@@ -255,7 +300,9 @@ inventia-orders/
 │   ├── index.js
 │   └── package.json
 ├── assets/                             # Capturas del README
-│   ├── dashboard.png
+│   ├── dashboard-v2.png
+│   ├── editar-pedido.png
+│   ├── exportar-excel.png
 │   ├── listener.png
 │   └── ticket.png
 ├── .gitignore
@@ -272,7 +319,7 @@ Las siguientes son mejoras sugeridas; no representan funcionalidades ya implemen
 - Incorporar pruebas de interfaz y pruebas end-to-end del flujo completo.
 - Agregar CI para ejecutar lint, pruebas y build en cada cambio.
 - Versionar una licencia MIT y definir pautas de contribución.
-- Sustituir o actualizar las capturas por imágenes anonimizadas del dashboard y de los flujos nuevos.
+- Mantener las capturas actualizadas conforme evolucione la interfaz.
 
 ## Autor
 
