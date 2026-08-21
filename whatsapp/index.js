@@ -1,5 +1,7 @@
 import axios from "axios";
-import qrcode from "qrcode-terminal";
+import express from "express";
+import QRCode from "qrcode";
+import qrcodeTerminal from "qrcode-terminal";
 import crypto from "crypto";
 
 import {
@@ -11,9 +13,138 @@ import {
 
 import { parsePedido } from "./parsers/pedidoParser.js";
 
+const LISTENER_HOST = "127.0.0.1";
+const LISTENER_PORT = Number(process.env.WHATSAPP_LISTENER_PORT || 3001);
+
+let activeSocket = null;
+let startPromise = null;
+let reconnectTimer = null;
+let keepAliveInterval = null;
+let socketGeneration = 0;
+
+const whatsappState = {
+    status: "STARTING",
+    qrDataUrl: null,
+    qrGeneratedAt: null,
+    connectedAt: null,
+    lastDisconnectAt: null,
+    lastError: null,
+    retryCount: 0
+};
+
+function updateWhatsappState(changes) {
+    Object.assign(whatsappState, changes);
+    console.log("[WhatsApp] Estado:", whatsappState.status);
+}
+
+function clearQr() {
+    whatsappState.qrDataUrl = null;
+    whatsappState.qrGeneratedAt = null;
+}
+
+function clearKeepAlive() {
+    if (keepAliveInterval) {
+        clearInterval(keepAliveInterval);
+        keepAliveInterval = null;
+    }
+}
+
+function scheduleReconnect() {
+    if (reconnectTimer) {
+        console.log("[WhatsApp] Reconexión ya programada.");
+        return;
+    }
+
+    updateWhatsappState({ status: "RECONNECTING" });
+    console.log("[WhatsApp] Reconectando en 5 segundos...");
+
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        iniciarBotSeguro("reconexión automática");
+    }, 5000);
+}
+
+function getStatusResponse() {
+    return {
+        status: whatsappState.status,
+        connectedAt: whatsappState.connectedAt,
+        lastDisconnectAt: whatsappState.lastDisconnectAt,
+        lastError: whatsappState.lastError,
+        retryCount: whatsappState.retryCount,
+        qrAvailable: Boolean(whatsappState.qrDataUrl)
+    };
+}
+
+const app = express();
+
+app.get("/api/whatsapp/status", (req, res) => {
+    res.json(getStatusResponse());
+});
+
+app.get("/api/whatsapp/qr", (req, res) => {
+    if (!whatsappState.qrDataUrl) {
+        return res.status(409).json({
+            status: whatsappState.status,
+            message: "No hay un código QR disponible."
+        });
+    }
+
+    res.json({
+        status: whatsappState.status,
+        qr: whatsappState.qrDataUrl,
+        generatedAt: whatsappState.qrGeneratedAt
+    });
+});
+
+app.listen(LISTENER_PORT, LISTENER_HOST, () => {
+    console.log(`[WhatsApp API] Escuchando en http://${LISTENER_HOST}:${LISTENER_PORT}`);
+});
+
 async function startBot() {
 
-    let keepAliveInterval = null;
+    if (startPromise) {
+        console.log("[WhatsApp] Inicio ya en curso; se reutiliza la conexión pendiente.");
+        return startPromise;
+    }
+
+    if (activeSocket) {
+        console.log("[WhatsApp] Ya existe un socket activo; no se crea otro.");
+        return;
+    }
+
+    startPromise = startBotInternal();
+
+    try {
+        await startPromise;
+    } finally {
+        startPromise = null;
+    }
+}
+
+function iniciarBotSeguro(origen) {
+
+    startBot().catch((error) => {
+
+        console.error(
+            `[WhatsApp] Error al iniciar el bot (${origen}):`,
+            error?.message || error
+        );
+
+        updateWhatsappState({
+            status: "ERROR",
+            lastError: error?.message || "Fallo al iniciar la conexión de WhatsApp."
+        });
+    });
+}
+
+async function startBotInternal() {
+
+    const generation = ++socketGeneration;
+    updateWhatsappState({
+        status: "STARTING",
+        lastError: null
+    });
+    console.log(`[WhatsApp] Iniciando socket (generación ${generation}).`);
 
     // ==========================================
     // sesión persistente whatsapp
@@ -53,6 +184,8 @@ async function startBot() {
         markOnlineOnConnect: false
     });
 
+    activeSocket = sock;
+
     // ==========================================
     // guardar credenciales
     // ==========================================
@@ -70,18 +203,51 @@ async function startBot() {
 
         "connection.update",
 
-        ({ connection, qr, lastDisconnect }) => {
+        async ({ connection, qr, lastDisconnect }) => {
+
+            if (generation !== socketGeneration || activeSocket !== sock) {
+                console.log(`[WhatsApp] Evento ignorado de socket obsoleto (generación ${generation}).`);
+                return;
+            }
 
             // ======================================
-            // qr consola
+            // qr consola y API local
             // ======================================
 
             if (qr) {
 
-                qrcode.generate(
+                qrcodeTerminal.generate(
                     qr,
                     { small: true }
                 );
+
+                try {
+                    const qrDataUrl = await QRCode.toDataURL(qr);
+
+                    if (generation !== socketGeneration || activeSocket !== sock || whatsappState.status === "CONNECTED") {
+                        console.log(`[WhatsApp] QR descartado de socket obsoleto o ya conectado (generación ${generation}).`);
+                        return;
+                    }
+
+                    updateWhatsappState({
+                        status: "QR_READY",
+                        qrDataUrl,
+                        qrGeneratedAt: new Date().toISOString(),
+                        lastError: null
+                    });
+                    console.log("[WhatsApp] QR actualizado y disponible en GET /api/whatsapp/qr.");
+                } catch (error) {
+                    clearQr();
+                    updateWhatsappState({
+                        status: "ERROR",
+                        lastError: "No se pudo generar la imagen del código QR."
+                    });
+                    console.error("[WhatsApp] Error generando QR:", error.message);
+                }
+            }
+
+            if (connection === "connecting" && !qr) {
+                updateWhatsappState({ status: "CONNECTING" });
             }
 
             // ======================================
@@ -94,9 +260,16 @@ async function startBot() {
                     "✅ WhatsApp conectado"
                 );
 
-                if (keepAliveInterval) {
-                    clearInterval(keepAliveInterval);
-                }
+                clearQr();
+                updateWhatsappState({
+                    status: "CONNECTED",
+                    connectedAt: new Date().toISOString(),
+                    lastError: null,
+                    retryCount: 0
+                });
+                console.log("[WhatsApp] Conexión establecida; QR temporal eliminado.");
+
+                clearKeepAlive();
 
                 keepAliveInterval = setInterval(async () => {
 
@@ -126,10 +299,9 @@ async function startBot() {
 
             if (connection === "close") {
 
-                if (keepAliveInterval) {
-                    clearInterval(keepAliveInterval);
-                    keepAliveInterval = null;
-                }
+                clearKeepAlive();
+                clearQr();
+                activeSocket = null;
 
                 const shouldReconnect =
 
@@ -143,15 +315,19 @@ async function startBot() {
                     lastDisconnect?.error?.message || ""
                 );
 
+                const lastError = lastDisconnect?.error?.message || null;
+                updateWhatsappState({
+                    status: shouldReconnect ? "RECONNECTING" : "LOGGED_OUT",
+                    lastDisconnectAt: new Date().toISOString(),
+                    lastError,
+                    retryCount: shouldReconnect ? whatsappState.retryCount + 1 : whatsappState.retryCount
+                });
+
                 if (shouldReconnect) {
 
-                    console.log(
-                        "🔄 Reconectando en 5 segundos..."
-                    );
-
-                    setTimeout(() => {
-                        startBot();
-                    }, 5000);
+                    scheduleReconnect();
+                } else {
+                    console.log("[WhatsApp] Sesión cerrada; no se intentará reconectar.");
                 }
             }
         }
@@ -172,203 +348,217 @@ async function startBot() {
                 type
             );
 
-            try {
+            // ======================================
+            // ignorar eventos históricos (append)
+            // ======================================
 
-                // ======================================
-                // ignorar append históricos
-                // ======================================
+            if (type === "append") {
 
-                if (type === "append") {
+                console.log(
+                    "📦 Evento histórico ignorado; no se reprocesan pedidos."
+                );
+
+                return;
+            }
+
+            // ======================================
+            // proteger contra sockets obsoletos
+            // ======================================
+
+            if (generation !== socketGeneration || activeSocket !== sock) {
+
+                console.log(
+                    `[WhatsApp] Lote de mensajes ignorado de socket obsoleto (generación ${generation}).`
+                );
+
+                return;
+            }
+
+            // ======================================
+            // procesar todos los mensajes del lote
+            // ======================================
+
+            for (const msg of messages) {
+
+                try {
+
+                    // ==================================
+                    // ignorar mensajes internos whatsapp
+                    // ==================================
+
+                    if (msg.message?.protocolMessage) {
+                        continue;
+                    }
+
+                    // ==================================
+                    // validar contenido
+                    // ==================================
+
+                    if (!msg.message) {
+
+                        console.log(
+                            "⛔ Mensaje vacío"
+                        );
+
+                        continue;
+                    }
+
+                    // ==================================
+                    // extraer texto compatible MD
+                    // ==================================
+
+                    const text =
+
+                        msg.message?.conversation ||
+
+                        msg.message?.extendedTextMessage?.text ||
+
+                        msg.message?.ephemeralMessage
+                            ?.message?.extendedTextMessage?.text ||
+
+                        msg.message?.ephemeralMessage
+                            ?.message?.conversation ||
+
+                        msg.message?.viewOnceMessage
+                            ?.message?.extendedTextMessage?.text ||
+
+                        msg.message?.viewOnceMessageV2
+                            ?.message?.extendedTextMessage?.text;
+
+                    // ==================================
+                    // ignorar sin texto
+                    // ==================================
+
+                    if (!text) {
+
+                        console.log(
+                            "⛔ No se encontró pedido"
+                        );
+
+                        continue;
+                    }
+
+                    // ==================================
+                    // detectar pedido
+                    // ==================================
+
+                    const isPedido =
+
+                        text.includes("CLIENTE:") &&
+                        text.includes("DNI:") &&
+                        text.includes("TELEFONO:") &&
+                        text.includes("DIRECCION:");
+
+                    if (!isPedido) {
+
+                        console.log(
+                            "⛔ Mensaje ignorado"
+                        );
+
+                        continue;
+                    }
+
+                    // ==================================
+                    // metadata 
+                    // ==================================
+
+                    const messageId =
+
+                        msg.key?.id ||
+                        crypto.randomUUID();
+
+                    const remoteJid =
+                        msg.key.remoteJid;
+
+                    const fechaMensaje =
+
+                        new Date(
+                            Number(
+                                msg.messageTimestamp
+                            ) * 1000
+                        );
+
+                    console.log("\n========================");
 
                     console.log(
-                        "📦 Recuperando mensajes offline..."
+                        "📦 NUEVO PEDIDO DETECTADO"
                     );
-                }
-
-                // ======================================
-                // obtener mensaje
-                // ======================================
-
-                const msg = messages[0];
-
-                // ======================================
-                // ignorar mensajes internos whatsapp
-                // ======================================
-
-                if (
-                    msg.message?.protocolMessage
-                ) {
-                    return;
-                }
-
-                // ======================================
-                // validar contenido
-                // ======================================
-
-                if (!msg.message) {
 
                     console.log(
-                        "⛔ Mensaje vacío"
+                        "📨 MessageID:",
+                        messageId
                     );
-
-                    return;
-                }
-
-                // ======================================
-                // extraer texto compatible MD
-                // ======================================
-
-                const text =
-
-                    msg.message?.conversation ||
-
-                    msg.message?.extendedTextMessage?.text ||
-
-                    msg.message?.ephemeralMessage
-                        ?.message?.extendedTextMessage?.text ||
-
-                    msg.message?.ephemeralMessage
-                        ?.message?.conversation ||
-
-                    msg.message?.viewOnceMessage
-                        ?.message?.extendedTextMessage?.text ||
-
-                    msg.message?.viewOnceMessageV2
-                        ?.message?.extendedTextMessage?.text;
-
-                // ======================================
-                // ignorar sin texto
-                // ======================================
-
-                if (!text) {
 
                     console.log(
-                        "⛔ No se encontró pedido"
+                        "📱 Chat:",
+                        remoteJid
                     );
 
-                    return;
-                }
+                    console.log("========================");
 
-                // ======================================
-                // detectar pedido
-                // ======================================
+                    // ==================================
+                    // parsear pedido
+                    // ==================================
 
-                const isPedido =
+                    const pedido =
+                        parsePedido(text);
 
-                    text.includes("CLIENTE:") &&
-                    text.includes("DNI:") &&
-                    text.includes("TELEFONO:") &&
-                    text.includes("DIRECCION:");
+                    pedido.messageId =
+                        messageId;
 
-                if (!isPedido) {
+                    pedido.remoteJid =
+                        remoteJid;
+
+                    pedido.fechaMensaje =
+                        fechaMensaje;
+
+                    console.log({
+
+                        cliente: pedido.cliente,
+
+                        telefono: pedido.telefono,
+
+                        producto: pedido.producto,
+
+                        messageId
+                    });
+
+                    // ==================================
+                    // enviar backend
+                    // ==================================
+
+                    const response =
+
+                        await axios.post(
+
+                            "http://localhost:8081/api/pedidos",
+
+                            pedido
+                        );
+
+                    if (!response.data) {
+
+                        console.log(
+                            "⚠️ Pedido duplicado"
+                        );
+
+                        continue;
+                    }
 
                     console.log(
-                        "⛔ Mensaje ignorado"
+                        "✅ Pedido enviado backend"
                     );
 
-                    return;
-                }
-
-                // ======================================
-                // metadata
-                // ======================================
-
-                const messageId =
-
-                    msg.key?.id ||
-                    crypto.randomUUID();
-
-                const remoteJid =
-                    msg.key.remoteJid;
-
-                const fechaMensaje =
-
-                    new Date(
-                        Number(
-                            msg.messageTimestamp
-                        ) * 1000
-                    );
-
-                console.log("\n========================");
-
-                console.log(
-                    "📦 NUEVO PEDIDO DETECTADO"
-                );
-
-                console.log(
-                    "📨 MessageID:",
-                    messageId
-                );
-
-                console.log(
-                    "📱 Chat:",
-                    remoteJid
-                );
-
-                console.log("========================");
-
-                // ======================================
-                // parsear pedido
-                // ======================================
-
-                const pedido =
-                    parsePedido(text);
-
-                pedido.messageId =
-                    messageId;
-
-                pedido.remoteJid =
-                    remoteJid;
-
-                pedido.fechaMensaje =
-                    fechaMensaje;
-
-                console.log({
-
-                    cliente: pedido.cliente,
-
-                    telefono: pedido.telefono,
-
-                    producto: pedido.producto,
-
-                    messageId
-                });
-
-                // ======================================
-                // enviar backend
-                // ======================================
-
-                const response =
-
-                    await axios.post(
-
-                        "http://localhost:8081/api/pedidos",
-
-                        pedido
-                    );
-
-                if (!response.data) {
+                } catch (error) {
 
                     console.log(
-                        "⚠️ Pedido duplicado"
+                        "❌ Error procesando mensaje"
                     );
 
-                    return;
+                    console.log(
+                        error.message
+                    );
                 }
-
-                console.log(
-                    "✅ Pedido enviado backend"
-                );
-
-            } catch (error) {
-
-                console.log(
-                    "❌ Error procesando mensaje"
-                );
-
-                console.log(
-                    error.message
-                );
             }
         }
     );
@@ -376,7 +566,7 @@ async function startBot() {
 
 setTimeout(() => {
 
-    startBot();
+    iniciarBotSeguro("arranque inicial");
 
 }, 5000);
 
