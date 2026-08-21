@@ -3,6 +3,7 @@ import express from "express";
 import QRCode from "qrcode";
 import qrcodeTerminal from "qrcode-terminal";
 import crypto from "crypto";
+import fs from "node:fs";
 
 import {
     makeWASocket,
@@ -15,12 +16,15 @@ import { parsePedido } from "./parsers/pedidoParser.js";
 
 const LISTENER_HOST = "127.0.0.1";
 const LISTENER_PORT = Number(process.env.WHATSAPP_LISTENER_PORT || 3001);
+const AUTH_DIR = "auth";
 
 let activeSocket = null;
 let startPromise = null;
 let reconnectTimer = null;
 let keepAliveInterval = null;
 let socketGeneration = 0;
+let logoutEnProgreso = false;
+let logoutPromise = null;
 
 const whatsappState = {
     status: "STARTING",
@@ -47,6 +51,35 @@ function clearKeepAlive() {
         clearInterval(keepAliveInterval);
         keepAliveInterval = null;
     }
+}
+
+function cancelarReconexion() {
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        console.log("[WhatsApp] Reconexión pendiente cancelada.");
+    }
+}
+
+function eliminarCredenciales() {
+    try {
+        fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+        console.log("[WhatsApp] Carpeta de credenciales auth/ eliminada.");
+    } catch (error) {
+        console.error("[WhatsApp] No se pudo eliminar la carpeta auth/:", error.message);
+    }
+}
+
+function reiniciarEstadoWhatsApp() {
+    updateWhatsappState({
+        status: "STARTING",
+        qrDataUrl: null,
+        qrGeneratedAt: null,
+        connectedAt: null,
+        lastDisconnectAt: null,
+        lastError: null,
+        retryCount: 0
+    });
 }
 
 function scheduleReconnect() {
@@ -96,6 +129,43 @@ app.get("/api/whatsapp/qr", (req, res) => {
     });
 });
 
+app.post("/api/whatsapp/logout", (req, res) => {
+
+    if (logoutPromise) {
+        return res.status(409).json({
+            status: whatsappState.status,
+            message: "Ya hay una desvinculación en curso."
+        });
+    }
+
+    logoutPromise = desvincularWhatsApp()
+        .then((respuesta) => {
+            res.json(respuesta);
+        })
+        .catch((error) => {
+
+            console.error(
+                "[WhatsApp] Error al desvincular:",
+                error?.message || error
+            );
+
+            updateWhatsappState({
+                status: "ERROR",
+                lastError: error?.message || "Fallo al desvincular WhatsApp."
+            });
+
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: whatsappState.status,
+                    message: "No se pudo desvincular WhatsApp."
+                });
+            }
+        })
+        .finally(() => {
+            logoutPromise = null;
+        });
+});
+
 app.listen(LISTENER_PORT, LISTENER_HOST, () => {
     console.log(`[WhatsApp API] Escuchando en http://${LISTENER_HOST}:${LISTENER_PORT}`);
 });
@@ -137,6 +207,67 @@ function iniciarBotSeguro(origen) {
     });
 }
 
+async function desvincularWhatsApp() {
+
+    logoutEnProgreso = true;
+
+    try {
+        cancelarReconexion();
+        clearKeepAlive();
+        console.log("[WhatsApp] Desvinculación solicitada desde la API.");
+
+        const sock = activeSocket;
+
+        if (sock) {
+
+            try {
+
+                await sock.logout();
+                console.log("[WhatsApp] Sesión cerrada en el servidor de WhatsApp.");
+
+            } catch (error) {
+
+                console.log(
+                    "[WhatsApp] logout() no se completó; se fuerza el cierre del socket:",
+                    error?.message || error
+                );
+
+                try {
+                    sock.end(undefined);
+                } catch {}
+            }
+
+            // esperar a que el evento close libere el socket (máximo 3 segundos)
+            const inicio = Date.now();
+
+            while (activeSocket === sock && Date.now() - inicio < 3000) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+
+            if (activeSocket === sock) {
+                activeSocket = null;
+            }
+
+        } else {
+            console.log("[WhatsApp] No hay socket activo; se eliminan las credenciales directamente.");
+        }
+
+        eliminarCredenciales();
+
+        reiniciarEstadoWhatsApp();
+
+        iniciarBotSeguro("desvinculación");
+
+        return {
+            status: whatsappState.status,
+            message: "Desvinculación iniciada; se generará un nuevo código QR."
+        };
+
+    } finally {
+        logoutEnProgreso = false;
+    }
+}
+
 async function startBotInternal() {
 
     const generation = ++socketGeneration;
@@ -152,7 +283,7 @@ async function startBotInternal() {
 
     const { state, saveCreds } =
 
-        await useMultiFileAuthState("auth");
+        await useMultiFileAuthState(AUTH_DIR);
 
     // ==========================================
     // obtener última versión de WhatsApp Web
@@ -224,7 +355,7 @@ async function startBotInternal() {
                 try {
                     const qrDataUrl = await QRCode.toDataURL(qr);
 
-                    if (generation !== socketGeneration || activeSocket !== sock || whatsappState.status === "CONNECTED") {
+                    if (generation !== socketGeneration || activeSocket !== sock || logoutEnProgreso || whatsappState.status === "CONNECTED") {
                         console.log(`[WhatsApp] QR descartado de socket obsoleto o ya conectado (generación ${generation}).`);
                         return;
                     }
@@ -302,6 +433,11 @@ async function startBotInternal() {
                 clearKeepAlive();
                 clearQr();
                 activeSocket = null;
+
+                if (logoutEnProgreso) {
+                    console.log("[WhatsApp] Cierre por desvinculación manual; reconexión automática omitida.");
+                    return;
+                }
 
                 const shouldReconnect =
 
