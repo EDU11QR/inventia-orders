@@ -16,3 +16,8 @@ export async function desvincularWhatsApp() {
     const response = await axios.post(`${API_URL}/logout`);
     return response.data;
 }
+
+export async function reconectarWhatsApp() {
+    const response = await axios.post(`${API_URL}/reconnect`);
+    return response.data;
+}

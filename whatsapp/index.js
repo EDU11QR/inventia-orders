@@ -25,6 +25,8 @@ let keepAliveInterval = null;
 let socketGeneration = 0;
 let logoutEnProgreso = false;
 let logoutPromise = null;
+let reconexionManual = false;
+let reconnectPromise = null;
 
 const whatsappState = {
     status: "STARTING",
@@ -166,6 +168,50 @@ app.post("/api/whatsapp/logout", (req, res) => {
         });
 });
 
+app.post("/api/whatsapp/reconnect", (req, res) => {
+
+    if (logoutEnProgreso || logoutPromise) {
+        return res.status(409).json({
+            status: whatsappState.status,
+            message: "Hay una desvinculación en curso; no se puede reconectar."
+        });
+    }
+
+    if (reconnectPromise || whatsappState.status === "STARTING") {
+        return res.status(409).json({
+            status: "RECONNECTING",
+            message: "Ya existe una reconexión en curso."
+        });
+    }
+
+    reconnectPromise = reconectarWhatsApp()
+        .then((respuesta) => {
+            res.json(respuesta);
+        })
+        .catch((error) => {
+
+            console.error(
+                "[WhatsApp] Error al reconectar:",
+                error?.message || error
+            );
+
+            updateWhatsappState({
+                status: "ERROR",
+                lastError: error?.message || "Fallo al reconectar WhatsApp."
+            });
+
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: whatsappState.status,
+                    message: "No se pudo iniciar la reconexión."
+                });
+            }
+        })
+        .finally(() => {
+            reconnectPromise = null;
+        });
+});
+
 app.listen(LISTENER_PORT, LISTENER_HOST, () => {
     console.log(`[WhatsApp API] Escuchando en http://${LISTENER_HOST}:${LISTENER_PORT}`);
 });
@@ -268,6 +314,68 @@ async function desvincularWhatsApp() {
     }
 }
 
+async function reconectarWhatsApp() {
+
+    reconexionManual = true;
+
+    try {
+        cancelarReconexion();
+        clearKeepAlive();
+        console.log("[WhatsApp] Reconexión manual solicitada desde la API.");
+
+        const sock = activeSocket;
+
+        if (sock) {
+
+            try {
+
+                sock.end(undefined);
+                console.log("[WhatsApp] Socket activo cerrado para reconexión; credenciales auth/ intactas.");
+
+            } catch (error) {
+
+                console.log(
+                    "[WhatsApp] No se pudo cerrar el socket activo:",
+                    error?.message || error
+                );
+            }
+
+            // esperar a que el evento close libere el socket (máximo 3 segundos)
+            const inicio = Date.now();
+
+            while (activeSocket === sock && Date.now() - inicio < 3000) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+
+            if (activeSocket === sock) {
+                activeSocket = null;
+            }
+
+        } else {
+            console.log("[WhatsApp] No hay socket activo; se inicia una conexión nueva.");
+        }
+
+        clearQr();
+        updateWhatsappState({
+            status: "RECONNECTING",
+            lastError: null
+        });
+
+        // liberar el flag antes de arrancar para no filtrar los eventos del socket nuevo
+        reconexionManual = false;
+
+        iniciarBotSeguro("reconexión manual");
+
+        return {
+            status: "RECONNECTING",
+            message: "Reconexión iniciada."
+        };
+
+    } finally {
+        reconexionManual = false;
+    }
+}
+
 async function startBotInternal() {
 
     const generation = ++socketGeneration;
@@ -355,7 +463,7 @@ async function startBotInternal() {
                 try {
                     const qrDataUrl = await QRCode.toDataURL(qr);
 
-                    if (generation !== socketGeneration || activeSocket !== sock || logoutEnProgreso || whatsappState.status === "CONNECTED") {
+                    if (generation !== socketGeneration || activeSocket !== sock || logoutEnProgreso || reconexionManual || whatsappState.status === "CONNECTED") {
                         console.log(`[WhatsApp] QR descartado de socket obsoleto o ya conectado (generación ${generation}).`);
                         return;
                     }
@@ -436,6 +544,11 @@ async function startBotInternal() {
 
                 if (logoutEnProgreso) {
                     console.log("[WhatsApp] Cierre por desvinculación manual; reconexión automática omitida.");
+                    return;
+                }
+
+                if (reconexionManual) {
+                    console.log("[WhatsApp] Cierre por reconexión manual; reconexión automática omitida.");
                     return;
                 }
 

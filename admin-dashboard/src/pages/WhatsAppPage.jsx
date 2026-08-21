@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { obtenerEstadoWhatsApp, obtenerQrWhatsApp, desvincularWhatsApp } from "../services/whatsappService";
+import { obtenerEstadoWhatsApp, obtenerQrWhatsApp, desvincularWhatsApp, reconectarWhatsApp } from "../services/whatsappService";
 
 const ESTADOS = {
     STARTING: {
@@ -45,10 +45,33 @@ function WhatsAppPage() {
     const [error, setError] = useState(null);
     const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
     const [desvinculando, setDesvinculando] = useState(false);
+    const [reconectando, setReconectando] = useState(false);
+
+    const mostrarReconectar = ["ERROR", "RECONNECTING", "LOGGED_OUT"].includes(estado?.status);
+
+    const manejarReconectar = async () => {
+
+        if (reconectando || desvinculando) {
+            return;
+        }
+
+        setReconectando(true);
+
+        try {
+
+            await reconectarWhatsApp();
+            setError(null);
+
+        } catch {
+            setError("No fue posible iniciar la reconexión de WhatsApp.");
+        } finally {
+            setReconectando(false);
+        }
+    };
 
     const manejarDesvincular = async () => {
 
-        if (desvinculando) {
+        if (desvinculando || reconectando) {
             return;
         }
 
@@ -185,7 +208,37 @@ function WhatsAppPage() {
                         </div>
                     </dl>
 
-                    <div className="mt-6 flex justify-end border-t border-slate-100 pt-4">
+                    <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4">
+                        {mostrarReconectar && (
+                            <button
+                                type="button"
+                                onClick={manejarReconectar}
+                                disabled={reconectando || desvinculando}
+                                className="
+                                    inline-flex
+                                    items-center
+                                    justify-center
+                                    rounded-lg
+                                    bg-blue-600
+                                    px-4
+                                    py-2.5
+                                    text-sm
+                                    font-semibold
+                                    text-white
+                                    shadow-sm
+                                    transition-colors
+                                    hover:bg-blue-700
+                                    focus:outline-none
+                                    focus:ring-2
+                                    focus:ring-blue-500
+                                    focus:ring-offset-2
+                                    disabled:cursor-not-allowed
+                                    disabled:opacity-50
+                                "
+                            >
+                                {reconectando ? "Reconectando..." : "Reconectar"}
+                            </button>
+                        )}
                         <button
                             type="button"
                             onClick={manejarDesvincular}
