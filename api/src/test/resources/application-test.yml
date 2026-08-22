@@ -1,0 +1,10 @@
+# ==========================================
+# SOLO PARA TESTS (perfil "test")
+# valores dummy para que el contexto de
+# Spring cargue sin variables de entorno
+# reales; se fusiona sobre application.yml
+# ==========================================
+app:
+  security:
+    api-key: test-api-key
+    jwt-secret: test-jwt-secret-de-mas-de-32-bytes

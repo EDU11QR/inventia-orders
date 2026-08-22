@@ -280,7 +280,7 @@ async function desvincularWhatsApp() {
 
                 try {
                     sock.end(undefined);
-                } catch {}
+                } catch { }
             }
 
             // esperar a que el evento close libere el socket (máximo 3 segundos)
@@ -774,6 +774,8 @@ async function startBotInternal() {
 
                     // ==================================
                     // enviar backend
+                    // (X-API-Key configurada en .env,
+                    // ver .env.example)
                     // ==================================
 
                     const response =
@@ -782,7 +784,14 @@ async function startBotInternal() {
 
                             "http://localhost:8081/api/pedidos",
 
-                            pedido
+                            pedido,
+
+                            {
+                                headers: {
+                                    "X-API-Key":
+                                        process.env.WHATSAPP_API_KEY
+                                }
+                            }
                         );
 
                     if (!response.data) {
