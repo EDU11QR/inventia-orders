@@ -1,12 +1,14 @@
 import { useState } from "react";
+import DashboardPage from "./pages/DashboardPage";
 import PedidosPage from "./pages/PedidosPage";
 import WhatsAppPage from "./pages/WhatsAppPage";
 
 function App() {
 
-  const [moduloActivo, setModuloActivo] = useState("pedidos");
+  const [moduloActivo, setModuloActivo] = useState("dashboard");
 
   const opciones = [
+    { id: "dashboard", etiqueta: "Dashboard" },
     { id: "pedidos", etiqueta: "Pedidos" },
     { id: "whatsapp", etiqueta: "WhatsApp" }
   ];
@@ -37,7 +39,13 @@ function App() {
       </aside>
 
       <main className="min-w-0 flex-1">
-        {moduloActivo === "pedidos" ? <PedidosPage /> : <WhatsAppPage />}
+        {moduloActivo === "dashboard" ? (
+          <DashboardPage onIrAPedidos={() => setModuloActivo("pedidos")} />
+        ) : moduloActivo === "pedidos" ? (
+          <PedidosPage />
+        ) : (
+          <WhatsAppPage />
+        )}
       </main>
     </div>
   );

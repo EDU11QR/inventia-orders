@@ -1,5 +1,7 @@
 package com.edudev.pedidos_api.repository;
 
+import com.edudev.pedidos_api.dto.projection.EstadoCountProjection;
+import com.edudev.pedidos_api.dto.projection.PeriodoCountProjection;
 import com.edudev.pedidos_api.entity.EstadoPedido;
 import com.edudev.pedidos_api.entity.Pedido;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -43,5 +45,39 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
             @Param("inicio") LocalDateTime inicio,
             @Param("finExclusivo") LocalDateTime finExclusivo
     );
+
+    // ==========================================
+    // métricas temporales del dashboard
+    // una sola pasada sobre el mes en curso
+    // usando el índice de fecha_registro
+    // ==========================================
+    @Query(nativeQuery = true, value = """
+            SELECT
+                COALESCE(SUM(p.fecha_registro >= :inicioDia), 0) AS pedidosHoy,
+                COALESCE(SUM(p.fecha_registro >= :inicioSemana), 0) AS pedidosSemana,
+                COUNT(*) AS pedidosMes
+            FROM pedidos p
+            WHERE p.fecha_registro >= :inicioMes
+            """)
+    PeriodoCountProjection contarPedidosPorPeriodo(
+            @Param("inicioDia") LocalDateTime inicioDia,
+            @Param("inicioSemana") LocalDateTime inicioSemana,
+            @Param("inicioMes") LocalDateTime inicioMes
+    );
+
+    // ==========================================
+    // conteos por estado (histórico global)
+    // ==========================================
+    @Query("""
+            SELECT p.estado AS estado, COUNT(p) AS total
+            FROM Pedido p
+            GROUP BY p.estado
+            """)
+    List<EstadoCountProjection> contarPedidosPorEstado();
+
+    // ==========================================
+    // últimos 10 pedidos para el dashboard
+    // ==========================================
+    List<Pedido> findTop10ByOrderByFechaRegistroDesc();
 
 }
