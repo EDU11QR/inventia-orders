@@ -727,23 +727,53 @@ async function startBotInternal() {
                             ) * 1000
                         );
 
-                    console.log("\n========================");
+                    // ==================================
+                    // datos del remitente del pedido
+                    // nombre: pushName del mensaje
+                    // número: participant sin dominio
+                    // ==================================
+
+                    // ==================================
+                    // datos del remitente del pedido
+                    // ==================================
+
+                    const vendedorNombre =
+                        msg.pushName || "DESCONOCIDO";
+
+                    const numeroVendedor =
+                        String(
+                            msg.key?.participant || remoteJid || ""
+                        ).split("@")[0];
+
+                    console.log("\n=================================================");
 
                     console.log(
                         "📦 NUEVO PEDIDO DETECTADO"
                     );
 
                     console.log(
-                        "📨 MessageID:",
+                        "👤 Vendedor:",
+                        vendedorNombre
+                    );
+
+                    console.log(
+                        "📱 Número:",
+                        numeroVendedor
+                    );
+
+                    console.log(
+                        "🆔 MessageID:",
                         messageId
                     );
 
                     console.log(
-                        "📱 Chat:",
+                        "💬 Chat:",
                         remoteJid
                     );
 
-                    console.log("========================");
+                    console.log(
+                        "================================================="
+                    );
 
                     // ==================================
                     // parsear pedido
@@ -761,10 +791,8 @@ async function startBotInternal() {
                     pedido.fechaMensaje =
                         fechaMensaje;
 
-                    // nombre vendedor remitente
-                    // (pushName del mensaje whatsapp)
                     pedido.vendedorNombre =
-                        msg.pushName || "DESCONOCIDO";
+                        vendedorNombre;
 
                     console.log({
 
