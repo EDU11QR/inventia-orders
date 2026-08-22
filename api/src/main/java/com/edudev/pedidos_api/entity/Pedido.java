@@ -48,6 +48,11 @@ public class Pedido {
     private String remoteJid;
 
     // ==========================================
+    // nombre vendedor remitente whatsapp
+    // ==========================================
+    private String vendedorNombre;
+
+    // ==========================================
     // fecha original mensaje whatsapp
     // ==========================================
     private LocalDateTime fechaMensaje;

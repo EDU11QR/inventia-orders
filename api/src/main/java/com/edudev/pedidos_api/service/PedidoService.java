@@ -77,6 +77,7 @@ public class PedidoService {
                 .producto(dto.getProducto())
                 .messageId(dto.getMessageId())
                 .remoteJid(dto.getRemoteJid())
+                .vendedorNombre(dto.getVendedorNombre())
                 .fechaMensaje(dto.getFechaMensaje())
                 //Todo pedido nuevo inicia como PENDIENTE
                 .estado(EstadoPedido.PENDIENTE)

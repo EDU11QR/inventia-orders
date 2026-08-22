@@ -761,6 +761,11 @@ async function startBotInternal() {
                     pedido.fechaMensaje =
                         fechaMensaje;
 
+                    // nombre vendedor remitente
+                    // (pushName del mensaje whatsapp)
+                    pedido.vendedorNombre =
+                        msg.pushName || "DESCONOCIDO";
+
                     console.log({
 
                         cliente: pedido.cliente,

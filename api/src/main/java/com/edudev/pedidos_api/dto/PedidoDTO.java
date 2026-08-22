@@ -25,5 +25,7 @@ public class PedidoDTO {
 
     private String remoteJid;
 
+    private String vendedorNombre;
+
     private LocalDateTime fechaMensaje;
 }

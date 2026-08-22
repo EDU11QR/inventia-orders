@@ -2,6 +2,7 @@ package com.edudev.pedidos_api.repository;
 
 import com.edudev.pedidos_api.dto.projection.EstadoCountProjection;
 import com.edudev.pedidos_api.dto.projection.PeriodoCountProjection;
+import com.edudev.pedidos_api.dto.projection.VendedorCountProjection;
 import com.edudev.pedidos_api.entity.EstadoPedido;
 import com.edudev.pedidos_api.entity.Pedido;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -79,5 +80,21 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
     // últimos 10 pedidos para el dashboard
     // ==========================================
     List<Pedido> findTop10ByOrderByFechaRegistroDesc();
+
+    // ==========================================
+    // ranking de pedidos por vendedor
+    // (preparado para próxima fase;
+    // sin endpoint expuesto todavía)
+    // ==========================================
+    @Query("""
+            SELECT
+                p.vendedorNombre AS vendedorNombre,
+                COUNT(p) AS total
+            FROM Pedido p
+            WHERE p.vendedorNombre IS NOT NULL
+            GROUP BY p.vendedorNombre
+            ORDER BY COUNT(p) DESC
+            """)
+    List<VendedorCountProjection> contarPedidosPorVendedor();
 
 }
