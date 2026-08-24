@@ -13,11 +13,14 @@ export const obtenerResumenDashboard = async () => {
     return response.data;
 };
 
-// obtener ranking de vendedores
-// (visualización en Fase 7.2)
-export const getTopVendedores = async () => {
+// dashboard consolidado sincronizado al periodo
+// periodo: "dia" | "semana" | "mes"
+// devuelve { metricas, grafico, topEmpleados }
+export const obtenerDashboard = async (periodo) => {
 
-    const response = await axios.get(`${API_URL}/vendedores`);
+    const response = await axios.get(API_URL, {
+        params: { periodo }
+    });
 
     return response.data;
 };

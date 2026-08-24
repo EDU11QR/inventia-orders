@@ -1,13 +1,130 @@
 import { useEffect, useState } from "react";
-import { obtenerResumenDashboard, getTopVendedores } from "../services/dashboardService";
+import {
+    obtenerResumenDashboard,
+    obtenerDashboard
+} from "../services/dashboardService";
+import GraficoLineas from "../components/GraficoLineas";
+
+// nombres cortos de día para el eje X semanal
+const NOMBRES_DIA = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+// medallas para el top 3 del ranking
+const MEDALLAS = ["🥇", "🥈", "🥉"];
+
+// nombre del mes actual capitalizado + año (ej. "Agosto 2026")
+function nombreMesActual() {
+
+    const partes = new Intl.DateTimeFormat("es", {
+        month: "long",
+        year: "numeric"
+    }).formatToParts(new Date());
+
+    const mes =
+        partes.find((parte) => parte.type === "month")?.value ?? "";
+
+    const anio =
+        partes.find((parte) => parte.type === "year")?.value ?? "";
+
+    return `${mes.charAt(0).toUpperCase()}${mes.slice(1)} ${anio}`;
+}
+
+// =========================================================
+// rellena la serie del backend con ceros para que
+// el eje X sea continuo:
+//   dia    -> horas 00:00 hasta la hora actual
+//   semana -> lunes a domingo (semana completa)
+//   mes    -> día 1 al último día del mes
+// =========================================================
+function construirSerieCompleta(periodo, filas) {
+
+    if (!Array.isArray(filas)) {
+        return [];
+    }
+
+    const mapa = new Map(
+        filas.map((fila) => [String(fila.etiqueta), fila.total])
+    );
+
+    const ahora = new Date();
+    const puntos = [];
+
+    if (periodo === "dia") {
+
+        for (let hora = 0; hora <= ahora.getHours(); hora++) {
+
+            puntos.push({
+                etiqueta: `${String(hora).padStart(2, "0")}:00`,
+                // el backend devuelve "00".."23"
+                total: mapa.get(String(hora).padStart(2, "0")) ?? 0
+            });
+        }
+
+    } else if (periodo === "semana") {
+
+        // lunes = 0; eje completo lun..dom
+        const diasTranscurridos = (ahora.getDay() + 6) % 7;
+
+        const lunes = new Date(
+            ahora.getFullYear(),
+            ahora.getMonth(),
+            ahora.getDate() - diasTranscurridos
+        );
+
+        for (let i = 0; i < 7; i++) {
+
+            const dia = new Date(lunes);
+            dia.setDate(lunes.getDate() + i);
+
+            const iso =
+                `${dia.getFullYear()}-` +
+                `${String(dia.getMonth() + 1).padStart(2, "0")}-` +
+                `${String(dia.getDate()).padStart(2, "0")}`;
+
+            puntos.push({
+                etiqueta:
+                    i <= diasTranscurridos
+                        ? `${NOMBRES_DIA[dia.getDay()]} ${dia.getDate()}`
+                        : NOMBRES_DIA[dia.getDay()],
+                total: mapa.get(iso) ?? 0
+            });
+        }
+
+    } else { // MES
+
+        const ultimoDiaMes =
+            new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0)
+                .getDate();
+
+        for (let diaMes = 1; diaMes <= ultimoDiaMes; diaMes++) {
+
+            puntos.push({
+                etiqueta: String(diaMes),
+                // el backend devuelve "01".."31"
+                total: mapa.get(String(diaMes).padStart(2, "0")) ?? 0
+            });
+        }
+    }
+
+    return puntos;
+}
 
 function DashboardPage() {
 
-    // resumen del dashboard
+    // resumen del dashboard (tarjetas de métricas)
     const [resumen, setResumen] = useState(null);
 
-    // ranking de vendedores
-    const [vendedores, setVendedores] = useState(null);
+    // =========================================================
+    // ESTADO ÚNICO DEL PERIODO DE ANÁLISIS
+    // =========================================================
+    // compartido por el gráfico, el ranking de empleados
+    // y futuras métricas del dashboard:
+    //   "dia" | "semana" | "mes"
+    // =========================================================
+    const [periodo, setPeriodo] = useState("dia");
+
+    // respuesta consolidada del backend para el periodo
+    // ({ metricas, grafico, topEmpleados })
+    const [datosPeriodo, setDatosPeriodo] = useState(null);
 
     // estado de carga inicial
     const [cargando, setCargando] = useState(true);
@@ -15,8 +132,9 @@ function DashboardPage() {
     // mensaje de error de la API
     const [error, setError] = useState(null);
 
-    // error exclusivo del ranking de vendedores
-    const [errorVendedores, setErrorVendedores] = useState(false);
+    // error exclusivo del bloque sincronizado
+    // (gráfico y ranking viajan en la misma llamada)
+    const [errorPeriodo, setErrorPeriodo] = useState(false);
 
     // contador para forzar recarga (botón reintentar)
     const [actualizacion, setActualizacion] = useState(0);
@@ -59,19 +177,19 @@ function DashboardPage() {
             }
         }
 
-        async function cargarVendedores() {
+        async function cargarDashboardPeriodo(periodoSeleccionado) {
 
             try {
 
-                const data = await getTopVendedores();
+                const data = await obtenerDashboard(periodoSeleccionado);
 
                 if (!activo) {
                     return;
                 }
 
-                setVendedores(data);
+                setDatosPeriodo(data);
 
-                setErrorVendedores(false);
+                setErrorPeriodo(false);
 
             } catch (err) {
 
@@ -79,17 +197,23 @@ function DashboardPage() {
 
                 if (activo) {
 
-                    setErrorVendedores(true);
+                    setErrorPeriodo(true);
                 }
             }
         }
 
         // carga inicial y auto refresh cada 30 segundos
-        Promise.all([cargarResumen(), cargarVendedores()]);
+        Promise.all([
+            cargarResumen(),
+            cargarDashboardPeriodo(periodo)
+        ]);
 
         const interval = setInterval(() => {
 
-            Promise.all([cargarResumen(), cargarVendedores()]);
+            Promise.all([
+                cargarResumen(),
+                cargarDashboardPeriodo(periodo)
+            ]);
 
         }, 30000);
 
@@ -101,7 +225,7 @@ function DashboardPage() {
             clearInterval(interval);
         };
 
-    }, [actualizacion]);
+    }, [actualizacion, periodo]);
 
     if (cargando) {
 
@@ -333,77 +457,140 @@ function DashboardPage() {
 
             </div>
 
-            {/* top vendedores */}
-            <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            {/* analitica: grafico 70% + ranking 30% (sincronizados al periodo) */}
+            <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-10 lg:gap-5">
 
-                <h2 className="mb-4 text-sm font-medium text-slate-500">
-                    🏆 Top Vendedores
-                </h2>
+                {/* panel izquierdo: pedidos por hora */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-7">
 
-                {
-                    errorVendedores && (
+                    <div className="mb-4 flex items-center justify-between gap-3">
 
-                        <p className="py-6 text-center text-sm text-red-600">
-                            No se pudo cargar el ranking
-                        </p>
-                    )
-                }
+                        <h2 className="text-sm font-medium text-slate-500">
+                            Pedidos por Hora
+                        </h2>
 
-                {
-                    !errorVendedores && !Array.isArray(vendedores) && (
+                        <select
+                            value={periodo}
+                            onChange={(evento) =>
+                                setPeriodo(evento.target.value)
+                            }
+                            aria-label="Periodo de análisis"
+                            className="
+                                rounded-lg border border-slate-300 bg-white
+                                px-2.5 py-1.5 text-xs font-medium text-slate-600
+                                transition-colors focus:border-blue-500
+                                focus:outline-none focus:ring-1 focus:ring-blue-500
+                            "
+                        >
+                            <option value="dia">Hoy</option>
+                            <option value="semana">Semana</option>
+                            <option value="mes">{nombreMesActual()}</option>
+                        </select>
 
-                        <p className="py-6 text-center text-sm text-slate-400">
-                            Cargando vendedores...
-                        </p>
-                    )
-                }
+                    </div>
 
-                {
-                    !errorVendedores &&
-                    Array.isArray(vendedores) &&
-                    vendedores.length === 0 && (
+                    {
+                        errorPeriodo && (
 
-                        <p className="py-6 text-center text-sm text-slate-400">
-                            No hay datos disponibles
-                        </p>
-                    )
-                }
+                            <p className="py-16 text-center text-sm text-red-600">
+                                No se pudo cargar el gráfico
+                            </p>
+                        )
+                    }
 
-                {
-                    !errorVendedores &&
-                    Array.isArray(vendedores) &&
-                    vendedores.length > 0 && (
+                    {
+                        !errorPeriodo && !datosPeriodo && (
 
-                        <ol className="divide-y divide-slate-100">
+                            <p className="py-16 text-center text-sm text-slate-400">
+                                Cargando gráfico...
+                            </p>
+                        )
+                    }
 
-                            {vendedores.slice(0, 5).map((vendedor, indice) => (
+                    {
+                        !errorPeriodo &&
+                        datosPeriodo && (
+                            <GraficoLineas
+                                datos={construirSerieCompleta(
+                                    periodo,
+                                    datosPeriodo.grafico ?? []
+                                )}
+                                pasoEtiqueta={periodo === "dia" ? 2 : undefined}
+                                clave={periodo}
+                            />
+                        )
+                    }
 
-                                <li
-                                    key={vendedor.vendedor}
-                                    className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
-                                >
+                </div>
 
-                                    <span className="flex items-center gap-3">
+                {/* panel derecho: ranking sincronizado al mismo periodo */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-3">
 
-                                        <span className="w-6 text-right text-sm font-bold tabular-nums text-slate-400">
-                                            {indice + 1}.
+                    <h2 className="mb-4 text-sm font-medium text-slate-500">
+                        Pedidos por Empleado
+                    </h2>
+
+                    {
+                        errorPeriodo && (
+                            <p className="py-6 text-center text-sm text-red-600">
+                                No se pudo cargar el ranking
+                            </p>
+                        )
+                    }
+
+                    {
+                        !errorPeriodo && !datosPeriodo && (
+                            <p className="py-6 text-center text-sm text-slate-400">
+                                Cargando vendedores...
+                            </p>
+                        )
+                    }
+
+                    {
+                        !errorPeriodo &&
+                        datosPeriodo &&
+                        datosPeriodo.topEmpleados?.length === 0 && (
+                            <p className="py-6 text-center text-sm text-slate-400">
+                                No hay datos disponibles
+                            </p>
+                        )
+                    }
+
+                    {
+                        !errorPeriodo &&
+                        datosPeriodo &&
+                        datosPeriodo.topEmpleados?.length > 0 && (
+
+                            <ol>
+
+                                {datosPeriodo.topEmpleados.map((vendedor, indice) => (
+
+                                    <li
+                                        key={vendedor.vendedorId}
+                                        className="flex items-center gap-2.5 py-2.5"
+                                    >
+
+                                        <span className="w-7 shrink-0 text-center text-sm">
+                                            {MEDALLAS[indice] ?? `${indice + 1}.`}
                                         </span>
 
-                                        <span className="text-sm font-medium text-slate-900">
+                                        <span className="truncate text-sm font-medium text-slate-900">
                                             {vendedor.vendedor}
                                         </span>
 
-                                    </span>
+                                        <span className="min-w-4 flex-1 border-b border-dotted border-slate-300" />
 
-                                    <span className="text-sm font-semibold tabular-nums text-blue-600">
-                                        {vendedor.total} pedidos
-                                    </span>
+                                        <span className="shrink-0 text-sm font-semibold tabular-nums text-blue-600">
+                                            {vendedor.total}
+                                        </span>
 
-                                </li>
-                            ))}
-                        </ol>
-                    )
-                }
+                                    </li>
+                                ))}
+                            </ol>
+                        )
+                    }
+
+                </div>
 
             </div>
 

@@ -1,1 +1,66 @@
 @import "tailwindcss";
+
+/* ==========================================
+   animaciones del area spline chart
+   (trazado de línea, aparición del área
+   y pop escalonado de los marcadores)
+   ========================================== */
+
+@keyframes grafico-trazar-linea {
+    from {
+        stroke-dashoffset: 1;
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes grafico-aparecer-area {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes grafico-pop-punto {
+    from {
+        opacity: 0;
+        transform: scale(0.3);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.grafico-linea {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: grafico-trazar-linea 900ms ease-out forwards;
+}
+
+.grafico-area {
+    animation: grafico-aparecer-area 700ms ease-out 150ms both;
+}
+
+.grafico-punto {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: grafico-pop-punto 350ms ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .grafico-linea,
+    .grafico-area,
+    .grafico-punto {
+        animation: none;
+    }
+
+    .grafico-linea {
+        stroke-dasharray: none;
+        stroke-dashoffset: 0;
+    }
+}
