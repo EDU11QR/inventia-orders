@@ -1,16 +1,22 @@
 import { useEffect, useState } from "react";
-import { obtenerResumenDashboard } from "../services/dashboardService";
+import { obtenerResumenDashboard, getTopVendedores } from "../services/dashboardService";
 
 function DashboardPage({ onIrAPedidos }) {
 
     // resumen del dashboard
     const [resumen, setResumen] = useState(null);
 
+    // ranking de vendedores
+    const [vendedores, setVendedores] = useState(null);
+
     // estado de carga inicial
     const [cargando, setCargando] = useState(true);
 
     // mensaje de error de la API
     const [error, setError] = useState(null);
+
+    // error exclusivo del ranking de vendedores
+    const [errorVendedores, setErrorVendedores] = useState(false);
 
     // contador para forzar recarga (botón reintentar)
     const [actualizacion, setActualizacion] = useState(0);
@@ -53,10 +59,39 @@ function DashboardPage({ onIrAPedidos }) {
             }
         }
 
-        // carga inicial y auto refresh cada 30 segundos
-        cargarResumen();
+        async function cargarVendedores() {
 
-        const interval = setInterval(cargarResumen, 30000);
+            try {
+
+                const data = await getTopVendedores();
+
+                if (!activo) {
+                    return;
+                }
+
+                setVendedores(data);
+
+                setErrorVendedores(false);
+
+            } catch (err) {
+
+                console.log(err);
+
+                if (activo) {
+
+                    setErrorVendedores(true);
+                }
+            }
+        }
+
+        // carga inicial y auto refresh cada 30 segundos
+        Promise.all([cargarResumen(), cargarVendedores()]);
+
+        const interval = setInterval(() => {
+
+            Promise.all([cargarResumen(), cargarVendedores()]);
+
+        }, 30000);
 
         // limpiar intervalo al salir
         return () => {
@@ -295,6 +330,80 @@ function DashboardPage({ onIrAPedidos }) {
                     </p>
 
                 </div>
+
+            </div>
+
+            {/* top vendedores */}
+            <div className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+
+                <h2 className="mb-4 text-sm font-medium text-slate-500">
+                    🏆 Top Vendedores
+                </h2>
+
+                {
+                    errorVendedores && (
+
+                        <p className="py-6 text-center text-sm text-red-600">
+                            No se pudo cargar el ranking
+                        </p>
+                    )
+                }
+
+                {
+                    !errorVendedores && !Array.isArray(vendedores) && (
+
+                        <p className="py-6 text-center text-sm text-slate-400">
+                            Cargando vendedores...
+                        </p>
+                    )
+                }
+
+                {
+                    !errorVendedores &&
+                    Array.isArray(vendedores) &&
+                    vendedores.length === 0 && (
+
+                        <p className="py-6 text-center text-sm text-slate-400">
+                            No hay datos disponibles
+                        </p>
+                    )
+                }
+
+                {
+                    !errorVendedores &&
+                    Array.isArray(vendedores) &&
+                    vendedores.length > 0 && (
+
+                        <ol className="divide-y divide-slate-100">
+
+                            {vendedores.slice(0, 5).map((vendedor, indice) => (
+
+                                <li
+                                    key={vendedor.vendedor}
+                                    className="flex items-center justify-between py-3 first:pt-0 last:pb-0"
+                                >
+
+                                    <span className="flex items-center gap-3">
+
+                                        <span className="w-6 text-right text-sm font-bold tabular-nums text-slate-400">
+                                            {indice + 1}.
+                                        </span>
+
+                                        <span className="text-sm font-medium text-slate-900">
+                                            {vendedor.vendedor}
+                                        </span>
+
+                                    </span>
+
+                                    <span className="text-sm font-semibold tabular-nums text-blue-600">
+                                        {vendedor.total} pedidos
+                                    </span>
+
+                                </li>
+                            ))}
+                        </ol>
+                    )
+                }
 
             </div>
 

@@ -12,3 +12,12 @@ export const obtenerResumenDashboard = async () => {
 
     return response.data;
 };
+
+// obtener ranking de vendedores
+// (visualización en Fase 7.2)
+export const getTopVendedores = async () => {
+
+    const response = await axios.get(`${API_URL}/vendedores`);
+
+    return response.data;
+};
