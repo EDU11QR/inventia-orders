@@ -794,6 +794,9 @@ async function startBotInternal() {
                     pedido.vendedorNombre =
                         vendedorNombre;
 
+                    pedido.vendedorId =
+                        numeroVendedor;
+
                     console.log({
 
                         cliente: pedido.cliente,

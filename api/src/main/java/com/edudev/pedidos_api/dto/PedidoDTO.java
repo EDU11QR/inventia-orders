@@ -27,5 +27,7 @@ public class PedidoDTO {
 
     private String vendedorNombre;
 
+    private String vendedorId;
+
     private LocalDateTime fechaMensaje;
 }

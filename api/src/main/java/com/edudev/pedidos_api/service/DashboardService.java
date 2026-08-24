@@ -2,8 +2,10 @@ package com.edudev.pedidos_api.service;
 
 import com.edudev.pedidos_api.dto.DashboardResumenDTO;
 import com.edudev.pedidos_api.dto.PedidoResumenDTO;
+import com.edudev.pedidos_api.dto.VendedorRankingDTO;
 import com.edudev.pedidos_api.dto.projection.EstadoCountProjection;
 import com.edudev.pedidos_api.dto.projection.PeriodoCountProjection;
+import com.edudev.pedidos_api.dto.projection.VendedorRankingProjection;
 import com.edudev.pedidos_api.entity.EstadoPedido;
 import com.edudev.pedidos_api.repository.PedidoRepository;
 import lombok.RequiredArgsConstructor;
@@ -71,5 +73,26 @@ public class DashboardService {
                 .cancelados(porEstado.getOrDefault(EstadoPedido.CANCELADO, 0L))
                 .ultimosPedidos(ultimosPedidos)
                 .build();
+    }
+
+    // =========================================================
+    // RANKING DE VENDEDORES
+    // =========================================================
+    // agrupado por vendedor_id: un registro por vendedor
+    // aunque haya usado varios nombres; el nombre mostrado
+    // es el más reciente asociado a ese id
+    // =========================================================
+    public List<VendedorRankingDTO> obtenerTopVendedores() {
+
+        return pedidoRepository.obtenerRankingVendedores()
+                .stream()
+                .map(fila ->
+                        VendedorRankingDTO.builder()
+                                .vendedorId(fila.getVendedorId())
+                                .vendedor(fila.getVendedor())
+                                .total(fila.getTotal())
+                                .build()
+                )
+                .toList();
     }
 }

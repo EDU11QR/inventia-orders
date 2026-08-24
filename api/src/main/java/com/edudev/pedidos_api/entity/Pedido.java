@@ -49,8 +49,15 @@ public class Pedido {
 
     // ==========================================
     // nombre vendedor remitente whatsapp
+    // (pushName del mensaje)
     // ==========================================
     private String vendedorNombre;
+
+    // ==========================================
+    // id vendedor remitente whatsapp
+    // (participant/LID sin dominio)
+    // ==========================================
+    private String vendedorId;
 
     // ==========================================
     // fecha original mensaje whatsapp

@@ -2,7 +2,7 @@ package com.edudev.pedidos_api.repository;
 
 import com.edudev.pedidos_api.dto.projection.EstadoCountProjection;
 import com.edudev.pedidos_api.dto.projection.PeriodoCountProjection;
-import com.edudev.pedidos_api.dto.projection.VendedorCountProjection;
+import com.edudev.pedidos_api.dto.projection.VendedorRankingProjection;
 import com.edudev.pedidos_api.entity.EstadoPedido;
 import com.edudev.pedidos_api.entity.Pedido;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -82,19 +82,30 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
     List<Pedido> findTop10ByOrderByFechaRegistroDesc();
 
     // ==========================================
-    // ranking de pedidos por vendedor
-    // (preparado para próxima fase;
-    // sin endpoint expuesto todavía)
+    // ranking comercial de vendedores
+    // agrupado por vendedor_id (identidad real),
+    // sumando todos sus pedidos aunque cambie
+    // el nombre; se muestra el nombre más
+    // reciente registrado para ese id,
+    // con fallback al propio id si nunca tuvo nombre
     // ==========================================
-    @Query("""
+    @Query(nativeQuery = true, value = """
             SELECT
-                p.vendedorNombre AS vendedorNombre,
-                COUNT(p) AS total
-            FROM Pedido p
-            WHERE p.vendedorNombre IS NOT NULL
-            GROUP BY p.vendedorNombre
-            ORDER BY COUNT(p) DESC
+                p.vendedor_id AS vendedorId,
+                COALESCE((
+                    SELECT p2.vendedor_nombre
+                    FROM pedidos p2
+                    WHERE p2.vendedor_id = p.vendedor_id
+                      AND p2.vendedor_nombre IS NOT NULL
+                    ORDER BY p2.fecha_registro DESC, p2.id DESC
+                    LIMIT 1
+                ), p.vendedor_id) AS vendedor,
+                COUNT(*) AS total
+            FROM pedidos p
+            WHERE p.vendedor_id IS NOT NULL
+            GROUP BY p.vendedor_id
+            ORDER BY COUNT(*) DESC
             """)
-    List<VendedorCountProjection> contarPedidosPorVendedor();
+    List<VendedorRankingProjection> obtenerRankingVendedores();
 
 }
