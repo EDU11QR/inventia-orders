@@ -2,12 +2,14 @@ package com.edudev.pedidos_api.repository;
 
 import com.edudev.pedidos_api.dto.projection.EstadoCountProjection;
 import com.edudev.pedidos_api.dto.projection.PeriodoCountProjection;
+import com.edudev.pedidos_api.dto.projection.SerieTemporalProjection;
 import com.edudev.pedidos_api.dto.projection.VendedorRankingProjection;
 import com.edudev.pedidos_api.entity.EstadoPedido;
 import com.edudev.pedidos_api.entity.Pedido;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -107,5 +109,94 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
             ORDER BY COUNT(*) DESC
             """)
     List<VendedorRankingProjection> obtenerRankingVendedores();
+
+    // ==========================================
+    // ranking de vendedores filtrado por ventana
+    // temporal [inicio, fin); misma lógica de
+    // agrupación por vendedor_id y nombre más reciente
+    // que el ranking global
+    // ==========================================
+    @Query(nativeQuery = true, value = """
+            SELECT
+                p.vendedor_id AS vendedorId,
+                COALESCE((
+                    SELECT p2.vendedor_nombre
+                    FROM pedidos p2
+                    WHERE p2.vendedor_id = p.vendedor_id
+                      AND p2.vendedor_nombre IS NOT NULL
+                    ORDER BY p2.fecha_registro DESC, p2.id DESC
+                    LIMIT 1
+                ), p.vendedor_id) AS vendedor,
+                COUNT(*) AS total
+            FROM pedidos p
+            WHERE p.vendedor_id IS NOT NULL
+              AND p.fecha_registro >= :inicio
+              AND p.fecha_registro < :fin
+            GROUP BY p.vendedor_id
+            ORDER BY COUNT(*) DESC
+            """)
+    List<VendedorRankingProjection> obtenerRankingVendedoresPorPeriodo(
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
+
+    // ==========================================
+    // series temporales del panel
+    // "Pedidos por Hora" (agrupan por fecha_registro;
+    // solo devuelven los tramos con pedidos, el front
+    // rellena los huecos con ceros)
+    // ==========================================
+
+    // hoy: agrupado por hora del día (00-23)
+    // se usa DATE_FORMAT (y no CAST/HOUR) para que la
+    // expresión del SELECT sea idéntica a la del GROUP BY
+    // y pasar el modo only_full_group_by de MySQL
+    @Query(nativeQuery = true, value = """
+            SELECT
+                DATE_FORMAT(p.fecha_registro, '%H') AS etiqueta,
+                COUNT(*) AS total
+            FROM pedidos p
+            WHERE p.fecha_registro >= :inicio
+              AND p.fecha_registro < :fin
+            GROUP BY DATE_FORMAT(p.fecha_registro, '%H')
+            ORDER BY DATE_FORMAT(p.fecha_registro, '%H')
+            """)
+    List<SerieTemporalProjection> contarPedidosPorHora(
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
+
+    // semana: agrupado por día natural
+    @Query(nativeQuery = true, value = """
+            SELECT
+                DATE_FORMAT(p.fecha_registro, '%Y-%m-%d') AS etiqueta,
+                COUNT(*) AS total
+            FROM pedidos p
+            WHERE p.fecha_registro >= :inicio
+              AND p.fecha_registro < :fin
+            GROUP BY DATE_FORMAT(p.fecha_registro, '%Y-%m-%d')
+            ORDER BY DATE_FORMAT(p.fecha_registro, '%Y-%m-%d')
+            """)
+    List<SerieTemporalProjection> contarPedidosPorDia(
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
+
+    // mes: agrupado por día del mes (01-31),
+    // con la misma técnica DATE_FORMAT
+    @Query(nativeQuery = true, value = """
+            SELECT
+                DATE_FORMAT(p.fecha_registro, '%d') AS etiqueta,
+                COUNT(*) AS total
+            FROM pedidos p
+            WHERE p.fecha_registro >= :inicio
+              AND p.fecha_registro < :fin
+            GROUP BY DATE_FORMAT(p.fecha_registro, '%d')
+            ORDER BY DATE_FORMAT(p.fecha_registro, '%d')
+            """)
+    List<SerieTemporalProjection> contarPedidosPorDiaDelMes(
+            @Param("inicio") LocalDateTime inicio,
+            @Param("fin") LocalDateTime fin
+    );
 
 }
