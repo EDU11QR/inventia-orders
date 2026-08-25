@@ -1,0 +1,22 @@
+# ==========================================
+# SOLO PARA TESTS (perfil "test")
+# datasource H2 en memoria + valores dummy
+# de seguridad para que el contexto de
+# Spring cargue sin variables de entorno
+# reales ni MySQL local; se fusiona sobre
+# application.yml cuando exista
+# ==========================================
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+app:
+  security:
+    api-key: test-api-key
+    jwt-secret: test-jwt-secret-de-mas-de-32-bytes

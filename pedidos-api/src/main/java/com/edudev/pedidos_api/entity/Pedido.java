@@ -1,0 +1,89 @@
+package com.edudev.pedidos_api.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "pedidos")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Pedido {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String cliente;
+
+    private String dni;
+
+    private String telefono;
+
+    private String direccion;
+
+    private String ciudad;
+
+    private Integer correlativo;
+
+    private String producto;
+
+    // ==========================================
+// id único mensaje whatsapp
+// evita pedidos duplicados
+// ==========================================
+    @Column(unique = true)
+    private String messageId;
+
+    // ==========================================
+    // chat origen whatsapp
+    // ejemplo: 51999999999@s.whatsapp.net
+    // ==========================================
+    private String remoteJid;
+
+    // ==========================================
+    // nombre vendedor remitente whatsapp
+    // (pushName del mensaje)
+    // ==========================================
+    private String vendedorNombre;
+
+    // ==========================================
+    // id vendedor remitente whatsapp
+    // (participant/LID sin dominio)
+    // ==========================================
+    private String vendedorId;
+
+    // ==========================================
+    // fecha original mensaje whatsapp
+    // ==========================================
+    private LocalDateTime fechaMensaje;
+
+    // ==========================================
+    // fecha impresión ticket
+    // ==========================================
+    private LocalDateTime fechaImpresion;
+
+    // ==========================================
+    // notas administrativas
+    // ==========================================
+    @Column(columnDefinition = "TEXT")
+    private String observaciones;
+
+    @Enumerated(EnumType.STRING)
+    private EstadoPedido estado;
+
+    @Column(columnDefinition =  "TEXT")
+    private String motivoCancelacion;
+
+    private LocalDateTime fechaCancelacion;
+
+    private LocalDateTime fechaRegistro;
+
+
+}

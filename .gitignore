@@ -1,0 +1,33 @@
+# WhatsApp session data
+whatsapp-listener/auth/
+whatsapp-listener/.env
+
+# PDF files generated at runtime
+pedidos-api/pdfs/
+
+# Node modules
+node_modules/
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation assets
+assets/
+
+# Maven
+pedidos-api/target/
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
