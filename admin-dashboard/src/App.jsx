@@ -5,6 +5,7 @@ import DashboardPage from "./pages/DashboardPage";
 import PedidosPage from "./pages/PedidosPage";
 import WhatsAppPage from "./pages/WhatsAppPage";
 import ConfiguracionPage from "./pages/ConfiguracionPage";
+import UsuariosPage from "./pages/UsuariosPage";
 
 const iconoDashboard = (
   <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -174,11 +175,7 @@ function App() {
         {moduloActual === "dashboard" && <DashboardPage />}
         {moduloActual === "pedidos" && <PedidosPage />}
         {moduloActual === "configuracion" && <ConfiguracionPage />}
-        {moduloActual === "usuarios" && (
-          <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-            <p className="text-sm text-slate-400">Módulo de Usuarios (próximamente)</p>
-          </div>
-        )}
+        {moduloActual === "usuarios" && <UsuariosPage />}
       </main>
 
     </div>

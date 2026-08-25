@@ -60,6 +60,9 @@ public class AuthService {
             throw new IllegalArgumentException("Credenciales inválidas");
         }
 
+        usuario.setFechaUltimoAcceso(LocalDateTime.now());
+        usuarioRepository.save(usuario);
+
         String token = jwtUtil.generarToken(
                 usuario.getId(),
                 usuario.getUsuario(),

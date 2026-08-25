@@ -54,6 +54,7 @@ public class SecurityConfig {
 
                         // ADMIN
                         .requestMatchers("/api/configuracion/**").hasRole("ADMIN")
+                        .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
 
                         // dashboard: ADMIN y VENTAS
                         .requestMatchers("/api/dashboard/**").hasAnyRole("ADMIN", "VENTAS")
