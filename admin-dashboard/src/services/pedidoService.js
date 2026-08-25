@@ -1,105 +1,57 @@
-import axios from "axios";
+import api from "./api";
 
-// URL base del backend Spring Boot
-const API_URL = "http://localhost:8081/api/pedidos";
-
-// obtener todos los pedidos
 export const obtenerPedidos = async () => {
-
-    const response = await axios.get(API_URL);
-
+    const response = await api.get("/api/pedidos");
     return response.data;
 };
 
-export const exportarPedidosExcel = async (fechaInicio, fechaFin) => {
+export const obtenerVendedores = async () => {
+    const response = await api.get("/api/pedidos/vendedores");
+    return response.data;
+};
 
-    const response = await axios.get(
-        `${API_URL}/exportar-excel`,
-        {
-            params: {
-                fechaInicio,
-                fechaFin
-            },
-            responseType: "blob"
-        }
-    );
+export const exportarPedidosExcel = async (fechaInicio, fechaFin, filtros = {}) => {
+    const params = { fechaInicio, fechaFin };
+
+    if (filtros.vendedorId) params.vendedorId = filtros.vendedorId;
+    if (filtros.estado) params.estado = filtros.estado;
+    if (filtros.busqueda) params.busqueda = filtros.busqueda;
+
+    const response = await api.get("/api/pedidos/exportar-excel", {
+        params,
+        responseType: "blob",
+    });
 
     return response;
 };
 
-// actualizar estado del pedido
 export const actualizarEstadoPedido = async (id, estado) => {
-
-    const response = await axios.put(
-        `${API_URL}/${id}/estado?estado=${estado}`
-    );
-
+    const response = await api.put(`/api/pedidos/${id}/estado?estado=${estado}`);
     return response.data;
 };
 
-// ==========================================
-// cancelar pedido
-// ==========================================
-
-export const cancelarPedido = async (
-    id,
-    motivoCancelacion
-) => {
-
-    const response = await axios.put(
-
-        `${API_URL}/${id}/cancelar`,
-
-        {
-            motivoCancelacion
-        }
-    );
-
+export const cancelarPedido = async (id, motivoCancelacion) => {
+    const response = await api.put(`/api/pedidos/${id}/cancelar`, {
+        motivoCancelacion,
+    });
     return response.data;
 };
 
-// editar pedido
 export const editarPedido = async (id, pedido) => {
-
-    const response = await axios.put(
-
-        `${API_URL}/${id}`,
-        pedido
-    );
-
+    const response = await api.put(`/api/pedidos/${id}`, pedido);
     return response.data;
 };
 
-// generar pdf y descargar
 export const generarPdf = async () => {
-
-    const response = await axios.get(
-
-        `${API_URL}/pdf`,
-        {
-            responseType: "blob"
-        }
-    );
-
+    const response = await api.get("/api/pedidos/pdf", {
+        responseType: "blob",
+    });
     return response.data;
 };
-
-// ==========================================
-// imprimir pedido individual
-// ==========================================
 
 export const imprimirPedido = async (id) => {
-
-    const response = await axios.post(
-
-        `http://localhost:8081/api/pedidos/${id}/imprimir`,
-
-        {},
-
-        {
-            responseType: "blob"
-        }
-    );
-
+    const response = await api.post(`/api/pedidos/${id}/imprimir`, {}, {
+        responseType: "blob",
+    });
     return response.data;
 };

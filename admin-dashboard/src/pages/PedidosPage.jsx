@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { obtenerPedidos, exportarPedidosExcel, actualizarEstadoPedido, cancelarPedido, editarPedido, generarPdf, imprimirPedido } from "../services/pedidoService";
+import { obtenerPedidos, obtenerVendedores, exportarPedidosExcel, actualizarEstadoPedido, cancelarPedido, editarPedido, generarPdf, imprimirPedido } from "../services/pedidoService";
 import EditarPedidoModal from "../components/EditarPedidoModal";
 
 function PedidosPage() {
@@ -22,6 +22,12 @@ function PedidosPage() {
     // filtro estado
     const [filtroEstado, setFiltroEstado] = useState("TODOS");
 
+    // filtro vendedor ("TODOS" o vendedorId)
+    const [filtroVendedor, setFiltroVendedor] = useState("TODOS");
+
+    // vendedores con pedidos para el selector
+    const [vendedores, setVendedores] = useState([]);
+
     // modal editar
     const [modalOpen, setModalOpen] = useState(false);
 
@@ -43,23 +49,6 @@ function PedidosPage() {
     // cantidad de filas por página
     const filasPorPagina = 10;
 
-    useEffect(() => {
-
-        // cargar pedidos inicialmente
-        cargarPedidos();
-
-        // auto refresh cada 5 segundos
-        const interval = setInterval(() => {
-
-            cargarPedidos();
-
-        }, 3000);
-
-        // limpiar intervalo al salir
-        return () => clearInterval(interval);
-
-    }, []);
-
     const cargarPedidos = async () => {
 
         try {
@@ -73,6 +62,40 @@ function PedidosPage() {
             console.log(error);
         }
     };
+
+    const cargarVendedores = async () => {
+
+        try {
+
+            const data = await obtenerVendedores();
+
+            setVendedores(data);
+
+        } catch (error) {
+
+            console.log(error);
+        }
+    };
+
+    useEffect(() => {
+
+        // cargar pedidos inicialmente
+        cargarPedidos();
+
+        // cargar vendedores para el selector
+        cargarVendedores();
+
+        // auto refresh cada 5 segundos
+        const interval = setInterval(() => {
+
+            cargarPedidos();
+
+        }, 3000);
+
+        // limpiar intervalo al salir
+        return () => clearInterval(interval);
+
+    }, []);
 
     const abrirModalExcel = () => {
 
@@ -111,9 +134,24 @@ function PedidosPage() {
 
         try {
 
+            // la exportación respeta exactamente
+            // los filtros activos en pantalla
             const response = await exportarPedidosExcel(
                 fechaInicio,
-                fechaFin
+                fechaFin,
+                {
+                    vendedorId:
+                        filtroVendedor === "TODOS"
+                            ? null
+                            : filtroVendedor,
+
+                    estado:
+                        filtroEstado === "TODOS"
+                            ? null
+                            : filtroEstado,
+
+                    busqueda: busqueda.trim() || null
+                }
             );
 
             if (response.status === 404) {
@@ -433,7 +471,7 @@ function PedidosPage() {
 
     const cancelados = contarPedidosPorEstado("CANCELADO");
 
-    // filtrar pedidos
+    // filtrar pedidos (filtros acumulativos)
     const pedidosFiltrados = pedidos.filter((pedido) => {
 
         // buscar por cliente o producto
@@ -456,7 +494,14 @@ function PedidosPage() {
                 ? true
                 : pedido.estado === filtroEstado;
 
-        return coincideBusqueda && coincideEstado;
+        // filtro por vendedor (identidad real vendedorId)
+        const coincideVendedor =
+
+            filtroVendedor === "TODOS"
+                ? true
+                : pedido.vendedorId === filtroVendedor;
+
+        return coincideBusqueda && coincideEstado && coincideVendedor;
     });
 
     // índices de paginación
@@ -865,6 +910,51 @@ function PedidosPage() {
                     <option value="CANCELADO">
                         Cancelados
                     </option>
+
+                </select>
+
+                {/* filtro vendedor */}
+                <select
+                    value={filtroVendedor}
+                    onChange={(e) => {
+
+                        setFiltroVendedor(e.target.value);
+
+                        // volver a la primera página
+                        setPaginaActual(1);
+                    }}
+                    aria-label="Filtrar por vendedor"
+                    className="
+                        h-11
+                        w-full
+                        rounded-lg
+                        border
+                        border-slate-300
+                        bg-white
+                        px-4
+                        text-sm
+                        text-slate-700
+                        shadow-sm
+                        transition
+                        focus:border-blue-500
+                        focus:outline-none
+                        focus:ring-2
+                        focus:ring-blue-500/20
+                        sm:w-48
+                    "
+                >
+                    <option value="TODOS">
+                        Todos
+                    </option>
+
+                    {vendedores.map((vendedor) => (
+                        <option
+                            key={vendedor.vendedorId}
+                            value={vendedor.vendedorId}
+                        >
+                            {vendedor.vendedor}
+                        </option>
+                    ))}
 
                 </select>
 

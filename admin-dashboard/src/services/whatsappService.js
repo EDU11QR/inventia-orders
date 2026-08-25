@@ -1,23 +1,21 @@
-import axios from "axios";
-
-const API_URL = "/api/whatsapp";
+import api from "./api";
 
 export async function obtenerEstadoWhatsApp() {
-    const response = await axios.get(`${API_URL}/status`);
+    const response = await api.get("/api/whatsapp/status");
     return response.data;
 }
 
 export async function obtenerQrWhatsApp() {
-    const response = await axios.get(`${API_URL}/qr`);
+    const response = await api.get("/api/whatsapp/qr");
     return response.data;
 }
 
 export async function desvincularWhatsApp() {
-    const response = await axios.post(`${API_URL}/logout`);
+    const response = await api.post("/api/whatsapp/logout");
     return response.data;
 }
 
 export async function reconectarWhatsApp() {
-    const response = await axios.post(`${API_URL}/reconnect`);
+    const response = await api.post("/api/whatsapp/reconnect");
     return response.data;
 }

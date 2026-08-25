@@ -3,6 +3,7 @@ import {
     obtenerResumenDashboard,
     obtenerDashboard
 } from "../services/dashboardService";
+import { obtenerConfiguracionEmpresa } from "../services/configuracionService";
 import GraficoLineas from "../components/GraficoLineas";
 
 // nombres cortos de día para el eje X semanal
@@ -113,6 +114,9 @@ function DashboardPage() {
     // resumen del dashboard (tarjetas de métricas)
     const [resumen, setResumen] = useState(null);
 
+    // nombre de la empresa desde configuración
+    const [nombreEmpresa, setNombreEmpresa] = useState("INVENTIA");
+
     // =========================================================
     // ESTADO ÚNICO DEL PERIODO DE ANÁLISIS
     // =========================================================
@@ -177,6 +181,17 @@ function DashboardPage() {
             }
         }
 
+        async function cargarNombreEmpresa() {
+            try {
+                const config = await obtenerConfiguracionEmpresa();
+                if (activo && config?.nombreEmpresa) {
+                    setNombreEmpresa(config.nombreEmpresa);
+                }
+            } catch (err) {
+                console.log(err);
+            }
+        }
+
         async function cargarDashboardPeriodo(periodoSeleccionado) {
 
             try {
@@ -205,7 +220,8 @@ function DashboardPage() {
         // carga inicial y auto refresh cada 30 segundos
         Promise.all([
             cargarResumen(),
-            cargarDashboardPeriodo(periodo)
+            cargarDashboardPeriodo(periodo),
+            cargarNombreEmpresa()
         ]);
 
         const interval = setInterval(() => {
@@ -257,7 +273,7 @@ function DashboardPage() {
                 <div className="flex flex-wrap items-baseline gap-x-3">
 
                     <span className="text-3xl font-bold text-blue-600 sm:text-4xl">
-                        INVENTIA
+                        {nombreEmpresa}
                     </span>
 
                     <span className="text-3xl font-bold text-slate-300 sm:text-4xl">
